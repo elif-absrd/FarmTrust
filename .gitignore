@@ -1,0 +1,6 @@
+.github/appmod/appcat*
+npm-debug.log
+.DS_Store
+.vscode/
+.env
+npm-modules/
