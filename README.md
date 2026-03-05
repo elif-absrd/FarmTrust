@@ -2,6 +2,8 @@
 
 A blockchain-based automated insurance and plant disease detection system that empowers Indian farmers with AI-driven diagnostics and transparent, automated insurance payouts.
 
+link to the log worksheet: https://1drv.ms/x/c/19fc1823325ea3bf/IQBXSRXngwzGT5OGHn3HFwE5AY0cC3L4Fji_u_ew2f1PWmE?e=s2m9eu 
+
 ## Table of Contents
 
 - [Abstract](#abstract)
