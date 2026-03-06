@@ -38,34 +38,40 @@ This approach aims to empower Indian farmers by offering accessible tools for ea
 ## Key Features
 
 ### Real-Time Multi-Class Disease Detection
-- **High Accuracy**: Identifies diseases in important Indian crops (rice blast, wheat rust, tomato leaf curl) 
+
+- **High Accuracy**: Identifies diseases in important Indian crops (rice blast, wheat rust, tomato leaf curl)
 - **On-Device Processing**: Lightweight model (MobileNetV3/MobileViT) runs efficiently on mobile devices
 - **Severity Estimation**: Assesses disease severity to determine insurance claim eligibility
 
 ### User-Friendly Mobile Interface
+
 - **Simple Camera-Based Scanning**: Point and shoot to diagnose plant diseases
 - **Instant Diagnosis**: Real-time results with disease identification and recommendations
 - **Offline First**: Accessible for rural farmers with limited connectivity
 
 ### Automated Parametric Insurance Triggers
+
 - **Smart Contract Automation**: AI results automatically trigger insurance payouts based on predefined thresholds
 - **Transparent Process**: Blockchain ensures all transactions are traceable and fraud-proof
 - **Quick Payouts**: Eliminates delays associated with traditional insurance claims
 - **PMFBY Integration**: Aligns with Pradhan Mantri Fasal Bima Yojana requirements
 
 ### Mock Blockchain Testing
+
 - **Polygon Testnet**: Free testnet deployment for development and demonstration
 - **Multi-Wallet Simulation**: Simulate farmer, insurer, and government wallets
 - **ERC-20 Mock Tokens**: "MockINR" tokens demonstrate payout mechanisms without real funds
 - **Safe Testing**: No real money involved in development and testing phases
 
 ### Free Storage and Tools
+
 - **IPFS Integration**: Decentralized, cost-free image and document storage
 - **Firebase Free Tier**: Push notifications and basic data storage
 - **Ganache Local Testing**: Local blockchain simulation for rapid development
 - **Open Source Stack**: All tools are free and accessible
 
 ### Traceability and Analytics
+
 - **Immutable On-Chain Logs**: Complete policy and claim history stored on blockchain
 - **Farmer Dashboard**: Track claims, view disease trends, and monitor policy status
 - **Data Analytics**: Insights into disease patterns and claim statistics
@@ -74,12 +80,14 @@ This approach aims to empower Indian farmers by offering accessible tools for ea
 ## Technology Stack
 
 ### Mobile Application
+
 - **Framework**: React Native for cross-platform iOS and Android development
 - **UI Components**: React Native Paper for Material Design
 - **Camera Integration**: React Native Camera for image capture
 - **Offline Support**: AsyncStorage for local data persistence
 
 ### AI/ML Model
+
 - **Framework**: TensorFlow 2.x and Keras for model development
 - **Model Architecture**: MobileNetV3 / MobileViT for lightweight inference
 - **Mobile Deployment**: TensorFlow Lite for on-device processing
@@ -87,13 +95,15 @@ This approach aims to empower Indian farmers by offering accessible tools for ea
 - **Data Augmentation**: Rotation, brightness adjustment for Indian field conditions
 
 ### Backend
+
 - **Server**: Node.js with Express.js
 - **API**: RESTful API architecture
 - **Authentication**: JWT (JSON Web Tokens)
 - **Database**: PostgreSQL for off-chain data (user profiles, policies)
 
 ### Blockchain
-- **Network**: Polygon Testnet 
+
+- **Network**: Polygon Testnet
 - **Smart Contracts**: Solidity for automated insurance triggers
 - **Development Framework**: Hardhat for contract deployment and testing
 - **Web3 Integration**: Ethers.js for blockchain interaction
@@ -102,11 +112,13 @@ This approach aims to empower Indian farmers by offering accessible tools for ea
 - **Local Testing**: Ganache for rapid development
 
 ### Storage
+
 - **Decentralized Storage**: IPFS (InterPlanetary File System) for images and documents
 - **Cloud Services**: Firebase free tier for notifications and basic storage
 - **On-Chain Storage**: Blockchain for data hashes and policy records
 
 ### DevOps & Tools
+
 - **Version Control**: Git & GitHub
 - **Testing**: Jest for JavaScript, Truffle for smart contracts
 - **API Documentation**: Swagger/OpenAPI
@@ -117,30 +129,38 @@ This approach aims to empower Indian farmers by offering accessible tools for ea
 Our methodology follows a clear process: data improvement, AI model training, mobile integration, blockchain simulation, and end-to-end testing.
 
 ### 1. Data Preparation and Enhancement
+
 We start by enhancing the Kaggle New Plant Diseases Dataset with additional images relevant to Indian crops. We use data augmentation techniques like rotation, brightness adjustments, and flipping to imitate real field conditions and improve model robustness.
 
 ### 2. AI Model Development
+
 For disease detection, we use transfer learning on lightweight models such as MobileNetV3 or MobileViT through TensorFlow and Keras. The trained model is then converted to TensorFlow Lite for efficient on-device inference, enabling offline functionality on farmer's mobile devices.
 
 **Key Steps:**
+
 - Binary classification (healthy vs diseased) as baseline
+
 - Extension to multi-class detection for specific diseases
 - Model optimization for mobile deployment
 - Achieved 94.59% validation accuracy
 
 ### 3. Mobile Application Development
+
 The mobile app is created with React Native for cross-platform compatibility. It captures images using the device camera and processes them offline using the TensorFlow Lite model. Data syncs to the backend when an internet connection is available.
 
 **Features:**
+
 - Camera integration for leaf scanning
 - Offline disease detection
 - Background sync when online
 - User-friendly interface for rural farmers
 
 ### 4. Blockchain Integration
+
 Blockchain integration utilizes Polygon Mumbai Testnet for smart contracts written in Solidity and deployed via Hardhat. We address the oracle problem by simulating data feeds with Chainlink testnet oracles, which relay AI results for claim verification.
 
 **Architecture:**
+
 - Smart contracts for insurance policy management
 - Automated triggers based on disease severity thresholds
 - ERC-20 "MockINR" tokens for simulated payouts
@@ -148,6 +168,7 @@ Blockchain integration utilizes Polygon Mumbai Testnet for smart contracts writt
 - Off-chain PostgreSQL for user profiles and detailed policy data
 
 ### 5. Free and Cost-Effective Solutions
+
 To ensure accessibility and reduce costs:
 
 1. **IPFS (InterPlanetary File System)**: Free peer-to-peer protocol for decentralized storage instead of paid cloud services like AWS S3
@@ -156,9 +177,11 @@ To ensure accessibility and reduce costs:
 4. **Polygon Mumbai Testnet**: Free testnet for blockchain development
 
 ### 6. Mock Insurance Payout Simulation
+
 We simulate payouts using ERC-20 tokens ("MockINR") in test wallets. The system mimics conversions to INR through console logs that act like UPI/DBT transactions, demonstrating the payout mechanism without using real funds.
 
 **Process Flow:**
+
 1. Disease detection triggers severity assessment
 2. If severity exceeds threshold, smart contract is notified
 3. Oracle verifies AI results on-chain
@@ -191,6 +214,7 @@ The system architecture consists of four main development workflows:
 ## Installation
 
 ### Prerequisites
+
 - Node.js
 - npm or yarn
 - PostgreSQL
@@ -281,6 +305,7 @@ We welcome contributions to FarmTrust! Please follow these steps:
 5. Open a Pull Request
 
 ### Areas for Contribution
+
 - **ML Model Improvements**: Enhance disease detection accuracy for specific crops
 - **Mobile UI/UX**: Improve app interface for better farmer experience
 - **Smart Contract Optimization**: Reduce gas costs and improve efficiency
@@ -296,38 +321,43 @@ GNU GENERAL PUBLIC LICENSE [LICENSE](LICENSE).
 ## Future Enhancements
 
 ### AI and Detection
+
 - **Expanded Crop Coverage**: Include more crop varieties and diseases
 - **Pest Detection**: Extend model to identify common agricultural pests
 - **Soil Analysis**: Integrate soil health assessment capabilities
 - **Weather Integration**: Combine disease prediction with weather data
 
 ### Blockchain and Smart Contracts
+
 - **Mainnet Deployment**: Transition from testnet to production blockchain
 - **Multi-Chain Support**: Deploy on multiple blockchain networks
 - **DeFi Integration**: Enable staking and yield farming for insurance pools
 - **DAO Governance**: Decentralized governance for policy decisions
 
 ### Mobile and User Experience
+
 - **Voice Interface**: Add voice commands in regional languages
 - **AR Visualization**: Augmented reality for field-level disease mapping
 - **Community Features**: Farmer forums and knowledge sharing
 - **Gamification**: Reward farmers for early disease reporting
 
 ### Integration and Partnerships
+
 - **PMFBY Integration**: Direct integration with government insurance schemes
 - **Bank Integration**: Connect with UPI/DBT for real money transactions
 - **IoT Sensors**: Integrate with field sensors for automated monitoring
 - **Government Systems**: Connect with agricultural department databases
 
 ### Analytics and Insights
+
 - **Predictive Analytics**: Forecast disease outbreaks based on historical data
 - **Regional Insights**: Provide region-specific recommendations
 - **Yield Prediction**: Estimate crop yields based on disease patterns
 - **Carbon Credits**: Track and monetize sustainable farming practices
 
 ### Scalability and Performance
+
 - **Edge Computing**: Optimize model for ultra-low-power devices
 - **Multi-Language Support**: Add support for all major Indian languages
 - **Offline Mode Enhancement**: Improve offline capabilities for remote areas
 - **Cloud Infrastructure**: Scale backend to handle millions of users
-
