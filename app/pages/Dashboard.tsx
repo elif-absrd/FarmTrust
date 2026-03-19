@@ -5,8 +5,9 @@ import { SeverityBadge } from '../components/SeverityBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { Shield, FileText, ScanLine, Wallet, Camera, AlertTriangle } from 'lucide-react-native';
+import { Shield, FileText, ScanLine, Wallet, Camera, AlertTriangle, LogOut } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/context/AuthContext';
 
 const stats = [
   { label: 'Active Policies', value: '3', icon: Shield, color: '#1a73e8' },
@@ -23,9 +24,23 @@ const alerts = [
 
 export default function Dashboard() {
   const router = useRouter();
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/login');
+  };
 
   return (
     <PageWrapper>
+      {/* Top bar with logout */}
+      <View style={styles.topBar}>
+        <Text style={styles.topBarTitle}>Dashboard</Text>
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn} activeOpacity={0.7}>
+          <LogOut color="#6b7280" size={20} />
+        </TouchableOpacity>
+      </View>
+
       {/* Hero banner */}
       <View style={styles.heroBanner}>
         <Image 
@@ -34,7 +49,7 @@ export default function Dashboard() {
         />
         <View style={styles.heroOverlay}>
           <View style={styles.heroContent}>
-            <Text style={styles.heroTitle}>Namaste, Rajesh 🌾</Text>
+            <Text style={styles.heroTitle}>Namaste, {user?.name ?? 'Farmer'} 🌾</Text>
             <Text style={styles.heroSubtitle}>
               Your crops are being monitored. 3 active policies protecting your harvest.
             </Text>
@@ -106,6 +121,20 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  topBarTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  logoutBtn: {
+    padding: 6,
+  },
   heroBanner: {
     height: 200,
     borderRadius: 12,

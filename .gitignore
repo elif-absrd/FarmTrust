@@ -4,3 +4,5 @@ npm-debug.log
 .vscode/
 .env
 npm-modules/
+.expo/
+_vscode/*

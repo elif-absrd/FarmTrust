@@ -53,7 +53,7 @@ export default function WalletPage() {
         </CardContent>
       </Card>
 
-      <Button
+      {/* <Button
         onPress={simulatePayout}
         disabled={animating}
         style={styles.payoutButton}
@@ -68,7 +68,7 @@ export default function WalletPage() {
             {animating ? 'Processing...' : 'Simulate Payout'}
           </Text>
         </View>
-      </Button>
+      </Button> */}
 
       {/* Transaction History */}
       <Card style={styles.historyCard}>
