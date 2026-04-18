@@ -1,6 +1,6 @@
 const express = require('express');
 const axios = require('axios');
-const pool = require('../config/database');
+const prisma = require('../config/prisma');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -16,28 +16,32 @@ router.post('/submit', authenticateToken, async (req, res) => {
     }
 
     // Verify farm belongs to user
-    const farmResult = await pool.query(
-      'SELECT * FROM farms WHERE id = $1 AND owner_id = $2',
-      [farmId, userId]
-    );
+    const farm = await prisma.farm.findFirst({
+      where: {
+        id: Number(farmId),
+        ownerId: userId,
+      },
+      select: { id: true },
+    });
 
-    if (farmResult.rows.length === 0) {
+    if (!farm) {
       return res.status(404).json({ error: 'Farm not found' });
     }
 
     // Create claim record
-    const claimResult = await pool.query(
-      `INSERT INTO claims
-       (farm_id, policy_id, disease_image_hash, disease_type, disease_severity, status)
-       VALUES ($1, $2, $3, $4, $5, 'pending')
-       RETURNING *`,
-      [farmId, policyId || null, diseaseImageHash, diseaseType, diseaseSeverity]
-    );
-
-    const claim = claimResult.rows[0];
+    const claim = await prisma.claim.create({
+      data: {
+        farmId: Number(farmId),
+        policyId: policyId ? Number(policyId) : null,
+        diseaseImageHash,
+        diseaseType: diseaseType || null,
+        diseaseSeverity: Number(diseaseSeverity),
+        status: 'pending',
+      },
+    });
 
     // If severity is high enough, trigger NDVI verification
-    if (diseaseSeverity > 0.6) {
+    if (Number(diseaseSeverity) > 0.6) {
       try {
         console.log(`🛰️  Triggering NDVI verification for farm ${farmId}`);
 
@@ -51,26 +55,19 @@ router.post('/submit', authenticateToken, async (req, res) => {
         );
 
         // Update claim with NDVI results
-        const updatedClaimResult = await pool.query(
-          `UPDATE claims
-           SET ndvi_verified = $1,
-               ndvi_baseline = $2,
-               ndvi_current = $3,
-               ndvi_drop_percentage = $4
-           WHERE id = $5
-           RETURNING *`,
-          [
-            ndviResult.data.verified,
-            ndviResult.data.ndvi_baseline,
-            ndviResult.data.ndvi_current,
-            ndviResult.data.drop_percentage,
-            claim.id
-          ]
-        );
+        const updatedClaim = await prisma.claim.update({
+          where: { id: claim.id },
+          data: {
+            ndviVerified: Boolean(ndviResult.data.verified),
+            ndviBaseline: ndviResult.data.ndvi_baseline,
+            ndviCurrent: ndviResult.data.ndvi_current,
+            ndviDropPercentage: ndviResult.data.drop_percentage,
+          },
+        });
 
         return res.status(201).json({
           message: 'Claim submitted with NDVI verification',
-          claim: updatedClaimResult.rows[0],
+          claim: updatedClaim,
           ndvi_data: ndviResult.data
         });
       } catch (ndviError) {
@@ -99,16 +96,17 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    const result = await pool.query(
-      `SELECT c.* FROM claims c
-       JOIN farms f ON c.farm_id = f.id
-       WHERE f.owner_id = $1
-       ORDER BY c.created_at DESC`,
-      [userId]
-    );
+    const claims = await prisma.claim.findMany({
+      where: {
+        farm: {
+          ownerId: userId,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
     res.json({
-      claims: result.rows
+      claims
     });
   } catch (error) {
     console.error('Fetch claims error:', error);
@@ -122,19 +120,21 @@ router.get('/:claimId', authenticateToken, async (req, res) => {
     const { claimId } = req.params;
     const userId = req.user.userId;
 
-    const result = await pool.query(
-      `SELECT c.* FROM claims c
-       JOIN farms f ON c.farm_id = f.id
-       WHERE c.id = $1 AND f.owner_id = $2`,
-      [claimId, userId]
-    );
+    const claim = await prisma.claim.findFirst({
+      where: {
+        id: Number(claimId),
+        farm: {
+          ownerId: userId,
+        },
+      },
+    });
 
-    if (result.rows.length === 0) {
+    if (!claim) {
       return res.status(404).json({ error: 'Claim not found' });
     }
 
     res.json({
-      claim: result.rows[0]
+      claim
     });
   } catch (error) {
     console.error('Fetch claim error:', error);

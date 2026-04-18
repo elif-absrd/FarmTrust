@@ -100,6 +100,23 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="orchard"
+        options={{
+          title: 'Orchard',
+          tabBarIcon: ({ color }) => (
+            <SymbolView
+              name={{
+                ios: 'leaf.fill',
+                android: 'eco',
+                web: 'eco',
+              }}
+              tintColor={color}
+              size={28}
+            />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

@@ -1,7 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const initializeDatabase = require('./config/init-db');
+const path = require('path');
+const prisma = require('./config/prisma');
+const { startNdviSyncScheduler } = require('./services/ndviSync');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -14,6 +16,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // CORS configuration for Expo and local development
 app.use(cors({
@@ -55,8 +58,8 @@ app.use((req, res) => {
 // Initialize database and start server
 const startServer = async () => {
   try {
-    console.log('🔄 Initializing database...');
-    await initializeDatabase();
+    console.log('🔄 Connecting to PostgreSQL via Prisma...');
+    await prisma.$connect();
 
     app.listen(PORT, () => {
       console.log(`\n✅ FarmTrust Backend running on http://localhost:${PORT}`);
@@ -64,14 +67,18 @@ const startServer = async () => {
       console.log('\n📡 Available endpoints:');
       console.log('  POST   /api/auth/register');
       console.log('  POST   /api/auth/login');
+      console.log('  GET    /api/auth/me');
       console.log('  GET    /api/farms');
       console.log('  POST   /api/farms');
+      console.log('  POST   /api/farms/register-orchard');
       console.log('  GET    /api/farms/:farmId');
       console.log('  PUT    /api/farms/:farmId');
+      console.log('  GET    /api/farms/:farmId/ndvi-current');
       console.log('  GET    /api/claims');
       console.log('  POST   /api/claims/submit');
       console.log('  GET    /api/claims/:claimId');
       console.log('\n💡 Make sure NDVI service is running on http://localhost:8000\n');
+      startNdviSyncScheduler();
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  FARMER
+  PROVIDER
+  ADMIN
+}
+
+enum SubscriptionPlan {
+  FREE
+  BASIC
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  EXPIRED
+}
+
+enum RegistrationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ValidationSource {
+  GOOGLE_EARTH
+  NDVI_SERVICE
+  MANUAL_REVIEW
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  walletAddress String?   @unique @map("wallet_address") @db.VarChar(255)
+  email         String    @unique @db.VarChar(255)
+  passwordHash  String?   @map("password_hash") @db.VarChar(255)
+  phone         String?   @db.VarChar(20)
+  farmerName    String?   @map("farmer_name") @db.VarChar(255)
+  region        String?   @db.VarChar(255)
+  role          UserRole  @default(FARMER)
+  subscriptionPlan    SubscriptionPlan   @default(FREE) @map("subscription_plan")
+  subscriptionStatus  SubscriptionStatus @default(ACTIVE) @map("subscription_status")
+  onboardingCompleted Boolean           @default(false) @map("onboarding_completed")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  farms    Farm[]
+  policies Policy[]
+  orchardRegistration OrchardRegistration?
+
+  @@map("users")
+}
+
+model Farm {
+  id                 Int       @id @default(autoincrement())
+  ownerId            Int       @map("owner_id")
+  farmName           String?   @map("farm_name") @db.VarChar(255)
+  cropType           String?   @map("crop_type") @db.VarChar(255)
+  orchardType        String?   @map("orchard_type") @db.VarChar(255)
+  farmTokenId        String?   @map("farm_token_id") @db.VarChar(255)
+  chainTxHash        String?   @map("chain_tx_hash") @db.VarChar(255)
+  chainNetwork       String?   @map("chain_network") @db.VarChar(100)
+  chainIdentityAssignedAt DateTime? @map("chain_identity_assigned_at")
+  state              String?   @db.VarChar(255)
+  district           String?   @db.VarChar(255)
+  addressLine1       String?   @map("address_line_1") @db.VarChar(255)
+  addressLine2       String?   @map("address_line_2") @db.VarChar(255)
+  village            String?   @db.VarChar(255)
+  city               String?   @db.VarChar(255)
+  pincode            String?   @db.VarChar(20)
+  landmark           String?   @db.VarChar(255)
+  fullAddress        String?   @map("full_address") @db.Text
+  areaAcres          Decimal?  @map("area_acres") @db.Decimal(10, 2)
+  numberOfTrees      Int?      @map("number_of_trees")
+  treeTypes          Json?     @map("tree_types")
+  gpsPolygon         Json?     @map("gps_polygon")
+  locationLatitude   Decimal?  @map("location_latitude") @db.Decimal(10, 7)
+  locationLongitude  Decimal?  @map("location_longitude") @db.Decimal(10, 7)
+  locationValidated  Boolean   @default(false) @map("location_validated")
+  locationValidatedAt DateTime? @map("location_validated_at")
+  locationValidationSource ValidationSource? @map("location_validation_source")
+  registrationStatus RegistrationStatus @default(PENDING) @map("registration_status")
+  baselineNdvi       Decimal?  @map("baseline_ndvi") @db.Decimal(5, 3)
+  baselineDate       DateTime? @map("baseline_date")
+  ndviScore          Decimal?  @map("ndvi_score") @db.Decimal(5, 3)
+  ndviScoredAt       DateTime? @map("ndvi_scored_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  owner       User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  claims      Claim[]
+  ndviHistory NdviHistory[]
+  policies    Policy[]
+  orchardRegistration OrchardRegistration?
+
+  @@map("farms")
+}
+
+model OrchardRegistration {
+  id                   Int               @id @default(autoincrement())
+  userId               Int               @unique @map("user_id")
+  farmId               Int?              @unique @map("farm_id")
+  orchardName          String            @map("orchard_name") @db.VarChar(255)
+  orchardType          String            @map("orchard_type") @db.VarChar(255)
+  addressLine1         String            @map("address_line_1") @db.VarChar(255)
+  addressLine2         String?           @map("address_line_2") @db.VarChar(255)
+  village              String?           @db.VarChar(255)
+  city                 String?           @db.VarChar(255)
+  district             String            @db.VarChar(255)
+  state                String            @db.VarChar(255)
+  pincode              String            @db.VarChar(20)
+  landmark             String?           @db.VarChar(255)
+  fullAddress          String            @map("full_address") @db.Text
+  gpsPolygon           Json              @map("gps_polygon")
+  locationLatitude     Decimal?          @map("location_latitude") @db.Decimal(10, 7)
+  locationLongitude    Decimal?          @map("location_longitude") @db.Decimal(10, 7)
+  numberOfTrees        Int               @map("number_of_trees")
+  treeTypes            Json              @map("tree_types")
+  subscriptionPlan     SubscriptionPlan  @default(FREE) @map("subscription_plan")
+  registrationStatus   RegistrationStatus @default(PENDING) @map("registration_status")
+  locationValidated    Boolean           @default(false) @map("location_validated")
+  locationValidationSource ValidationSource? @map("location_validation_source")
+  locationValidationMessage String?       @map("location_validation_message") @db.Text
+  locationValidationScore Decimal?        @map("location_validation_score") @db.Decimal(5, 3)
+  ndviScore            Decimal?          @map("ndvi_score") @db.Decimal(5, 3)
+  ndviScoredAt         DateTime?         @map("ndvi_scored_at")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  farm        Farm?               @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  documents   OrchardDocument[]
+
+  @@map("orchard_registrations")
+}
+
+model OrchardDocument {
+  id                    Int                 @id @default(autoincrement())
+  orchardRegistrationId Int                 @map("orchard_registration_id")
+  fileName              String              @map("file_name") @db.VarChar(255)
+  originalName          String              @map("original_name") @db.VarChar(255)
+  filePath              String              @map("file_path") @db.Text
+  mimeType              String?             @map("mime_type") @db.VarChar(255)
+  fileSize              Int?                @map("file_size")
+  createdAt             DateTime            @default(now()) @map("created_at")
+
+  orchardRegistration OrchardRegistration @relation(fields: [orchardRegistrationId], references: [id], onDelete: Cascade)
+
+  @@map("orchard_documents")
+}
+
+model NdviHistory {
+  id        Int       @id @default(autoincrement())
+  farmId    Int       @map("farm_id")
+  ndviValue Decimal?  @map("ndvi_value") @db.Decimal(5, 3)
+  fetchDate DateTime? @map("fetch_date")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  farm Farm @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@map("ndvi_history")
+}
+
+model Policy {
+  id                Int       @id @default(autoincrement())
+  ownerId           Int       @map("owner_id")
+  farmId            Int       @map("farm_id")
+  cropType          String?   @map("crop_type") @db.VarChar(255)
+  coverageAmount    Decimal?  @map("coverage_amount") @db.Decimal(12, 2)
+  premium           Decimal?  @db.Decimal(12, 2)
+  severityThreshold Decimal?  @map("severity_threshold") @db.Decimal(3, 2)
+  status            String?   @db.VarChar(50)
+  startDate         DateTime? @map("start_date")
+  endDate           DateTime? @map("end_date")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  owner  User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  farm   Farm    @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  claims Claim[]
+
+  @@map("policies")
+}
+
+model Claim {
+  id                 Int       @id @default(autoincrement())
+  farmId             Int       @map("farm_id")
+  policyId           Int?      @map("policy_id")
+  diseaseImageHash   String?   @map("disease_image_hash") @db.VarChar(255)
+  diseaseType        String?   @map("disease_type") @db.VarChar(255)
+  diseaseSeverity    Decimal?  @map("disease_severity") @db.Decimal(3, 2)
+  ndviVerified       Boolean   @default(false) @map("ndvi_verified")
+  ndviBaseline       Decimal?  @map("ndvi_baseline") @db.Decimal(5, 3)
+  ndviCurrent        Decimal?  @map("ndvi_current") @db.Decimal(5, 3)
+  ndviDropPercentage Decimal?  @map("ndvi_drop_percentage") @db.Decimal(5, 2)
+  status             String?   @db.VarChar(50)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  farm   Farm    @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  policy Policy? @relation(fields: [policyId], references: [id])
+
+  @@map("claims")
+}

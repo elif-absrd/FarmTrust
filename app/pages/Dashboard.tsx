@@ -49,7 +49,7 @@ export default function Dashboard() {
         />
         <View style={styles.heroOverlay}>
           <View style={styles.heroContent}>
-            <Text style={styles.heroTitle}>Namaste, {user?.name ?? 'Farmer'} 🌾</Text>
+            <Text style={styles.heroTitle}>Namaste, {user?.farmer_name ?? 'Farmer'} 🌾</Text>
             <Text style={styles.heroSubtitle}>
               Your crops are being monitored. 3 active policies protecting your harvest.
             </Text>
