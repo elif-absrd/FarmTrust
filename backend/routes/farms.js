@@ -8,6 +8,9 @@ const prisma = require('../config/prisma');
 const { authenticateToken } = require('../middleware/auth');
 const { assignFarmIdentityOnPolygon } = require('../services/chainIdentity');
 
+// Configuration
+const NDVI_SERVICE_URL = process.env.NDVI_SERVICE_URL || 'http://localhost:8000';
+
 const router = express.Router();
 
 const uploadDir = path.join(__dirname, '..', 'uploads', 'orchard-documents');
@@ -258,7 +261,7 @@ router.post('/register-orchard', authenticateToken, upload.array('documents', 10
 
     try {
       const ndviResponse = await axios.get(
-        `${process.env.NDVI_SERVICE_URL || 'http://localhost:8000'}/api/ndvi/current/${farm.id}`,
+        `${NDVI_SERVICE_URL}/api/ndvi/current/${farm.id}`,
         { timeout: 30000 }
       );
 
@@ -451,7 +454,7 @@ router.get('/:farmId/ndvi-current', authenticateToken, async (req, res) => {
     }
 
     const ndviResponse = await axios.get(
-      `${process.env.NDVI_SERVICE_URL || 'http://localhost:8000'}/api/ndvi/current/${farm.id}`,
+      `${NDVI_SERVICE_URL}/api/ndvi/current/${farm.id}`,
       { timeout: 30000 }
     );
 

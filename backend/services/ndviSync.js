@@ -3,9 +3,12 @@ const { Prisma } = require('@prisma/client');
 const axios = require('axios');
 const prisma = require('../config/prisma');
 
+// Configuration
+const NDVI_SERVICE_URL = process.env.NDVI_SERVICE_URL || 'http://localhost:8000';
+
 async function syncFarmNdvi(farm) {
   const ndviResponse = await axios.get(
-    `${process.env.NDVI_SERVICE_URL || 'http://localhost:8000'}/api/ndvi/current/${farm.id}`,
+    `${NDVI_SERVICE_URL}/api/ndvi/current/${farm.id}`,
     { timeout: 30000 }
   );
 

@@ -3,6 +3,9 @@ const axios = require('axios');
 const prisma = require('../config/prisma');
 const { authenticateToken } = require('../middleware/auth');
 
+// Configuration
+const NDVI_SERVICE_URL = process.env.NDVI_SERVICE_URL || 'http://localhost:8000';
+
 const router = express.Router();
 
 // Submit a disease claim
@@ -46,7 +49,7 @@ router.post('/submit', authenticateToken, async (req, res) => {
         console.log(`🛰️  Triggering NDVI verification for farm ${farmId}`);
 
         const ndviResult = await axios.post(
-          `${process.env.NDVI_SERVICE_URL || 'http://localhost:8000'}/api/ndvi/verify-claim`,
+          `${NDVI_SERVICE_URL}/api/ndvi/verify-claim`,
           {
             farm_id: farmId,
             current_ndvi: null // Let Python service fetch current

@@ -12,21 +12,30 @@ const claimsRoutes = require('./routes/claims');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const NDVI_SERVICE_URL = process.env.NDVI_SERVICE_URL || 'http://localhost:8000';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8082';
+
+// Parse CORS origins from environment variable or use defaults
+const getCorsOrigins = () => {
+  if (process.env.CORS_ORIGINS) {
+    return process.env.CORS_ORIGINS.split(',').map(url => url.trim());
+  }
+  return [
+    `http://localhost:${PORT}`,
+    `http://127.0.0.1:${PORT}`,
+    FRONTEND_URL,
+    'http://localhost:3000', // For testing/development
+  ];
+};
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// CORS configuration for Expo and local development
+// CORS configuration
 app.use(cors({
-  origin: [
-    'http://localhost:5000',
-    'http://127.0.0.1:5000',
-    'http://localhost:8081',
-    'http://localhost:3000',
-    // Add your Expo IP here: 'http://192.168.x.x:8081'
-  ],
+  origin: getCorsOrigins(),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -77,8 +86,16 @@ const startServer = async () => {
       console.log('  GET    /api/claims');
       console.log('  POST   /api/claims/submit');
       console.log('  GET    /api/claims/:claimId');
-      console.log('\n💡 Make sure NDVI service is running on http://localhost:8000\n');
-      startNdviSyncScheduler();
+      console.log(`\n💡 NDVI Service: ${NDVI_SERVICE_URL}`);
+      console.log(`   Frontend URL: ${FRONTEND_URL}\n`);
+      
+      // Start NDVI sync scheduler if enabled
+      if (process.env.NDVI_SYNC_ON_START === 'true') {
+        console.log('🔄 Starting NDVI sync scheduler...');
+        startNdviSyncScheduler();
+      } else {
+        console.log('⏭️  NDVI sync scheduler disabled (set NDVI_SYNC_ON_START=true to enable)');
+      }
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
