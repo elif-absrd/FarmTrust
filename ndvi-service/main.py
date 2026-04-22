@@ -25,13 +25,22 @@ app = FastAPI(
 )
 
 # CORS configuration
+def get_cors_origins():
+    """Get CORS origins from environment or use defaults"""
+    cors_origins = os.getenv('CORS_ORIGINS', '')
+    if cors_origins:
+        return [origin.strip() for origin in cors_origins.split(',')]
+    # Default origins for development
+    backend_url = os.getenv('BACKEND_URL', 'http://localhost:5000')
+    return [
+        backend_url,
+        f"http://127.0.0.1:{backend_url.split(':')[-1] if ':' in backend_url else 5000}",
+        "http://localhost:3000",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5000",
-        "http://127.0.0.1:5000",
-        "http://localhost:3000",
-    ],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -16,6 +16,13 @@ Node.js + Express.js backend for FarmTrust application with PostgreSQL database 
 npm install
 ```
 
+### 1.1 Prisma Setup
+
+```bash
+npm run prisma:generate
+npm run prisma:push
+```
+
 ### 2. PostgreSQL Setup
 
 Install PostgreSQL and create a database:
@@ -46,6 +53,7 @@ DB_PASSWORD=your_postgres_password
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=farmtrust
+DATABASE_URL=postgresql://postgres:your_postgres_password@localhost:5432/farmtrust?schema=public
 
 PORT=5000
 NODE_ENV=development
@@ -95,10 +103,13 @@ Server will start on `http://localhost:5000`
   }
   ```
 
+- **GET** `/api/auth/me` - Fetch authenticated farmer profile
+
 ### Farms (Requires JWT Token)
 
 - **GET** `/api/farms` - Get all farms for user
 - **POST** `/api/farms` - Create new farm
+- **POST** `/api/farms/register-orchard` - Register orchard with crop/location metadata
   ```json
   {
     "farmName": "North Field",
@@ -111,6 +122,7 @@ Server will start on `http://localhost:5000`
   ```
 - **GET** `/api/farms/:farmId` - Get farm details
 - **PUT** `/api/farms/:farmId` - Update farm
+- **GET** `/api/farms/:farmId/ndvi-current` - Proxy current NDVI from NDVI service
 
 ### Claims (Requires JWT Token)
 

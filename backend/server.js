@@ -1,7 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const initializeDatabase = require('./config/init-db');
+const path = require('path');
+const prisma = require('./config/prisma');
+const { startNdviSyncScheduler } = require('./services/ndviSync');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -10,20 +12,30 @@ const claimsRoutes = require('./routes/claims');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const NDVI_SERVICE_URL = process.env.NDVI_SERVICE_URL || 'http://localhost:8000';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8082';
+
+// Parse CORS origins from environment variable or use defaults
+const getCorsOrigins = () => {
+  if (process.env.CORS_ORIGINS) {
+    return process.env.CORS_ORIGINS.split(',').map(url => url.trim());
+  }
+  return [
+    `http://localhost:${PORT}`,
+    `http://127.0.0.1:${PORT}`,
+    FRONTEND_URL,
+    'http://localhost:3000', // For testing/development
+  ];
+};
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// CORS configuration for Expo and local development
+// CORS configuration
 app.use(cors({
-  origin: [
-    'http://localhost:5000',
-    'http://127.0.0.1:5000',
-    'http://localhost:8081',
-    'http://localhost:3000',
-    // Add your Expo IP here: 'http://192.168.x.x:8081'
-  ],
+  origin: getCorsOrigins(),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -55,8 +67,8 @@ app.use((req, res) => {
 // Initialize database and start server
 const startServer = async () => {
   try {
-    console.log('🔄 Initializing database...');
-    await initializeDatabase();
+    console.log('🔄 Connecting to PostgreSQL via Prisma...');
+    await prisma.$connect();
 
     app.listen(PORT, () => {
       console.log(`\n✅ FarmTrust Backend running on http://localhost:${PORT}`);
@@ -64,14 +76,26 @@ const startServer = async () => {
       console.log('\n📡 Available endpoints:');
       console.log('  POST   /api/auth/register');
       console.log('  POST   /api/auth/login');
+      console.log('  GET    /api/auth/me');
       console.log('  GET    /api/farms');
       console.log('  POST   /api/farms');
+      console.log('  POST   /api/farms/register-orchard');
       console.log('  GET    /api/farms/:farmId');
       console.log('  PUT    /api/farms/:farmId');
+      console.log('  GET    /api/farms/:farmId/ndvi-current');
       console.log('  GET    /api/claims');
       console.log('  POST   /api/claims/submit');
       console.log('  GET    /api/claims/:claimId');
-      console.log('\n💡 Make sure NDVI service is running on http://localhost:8000\n');
+      console.log(`\n💡 NDVI Service: ${NDVI_SERVICE_URL}`);
+      console.log(`   Frontend URL: ${FRONTEND_URL}\n`);
+      
+      // Start NDVI sync scheduler if enabled
+      if (process.env.NDVI_SYNC_ON_START === 'true') {
+        console.log('🔄 Starting NDVI sync scheduler...');
+        startNdviSyncScheduler();
+      } else {
+        console.log('⏭️  NDVI sync scheduler disabled (set NDVI_SYNC_ON_START=true to enable)');
+      }
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

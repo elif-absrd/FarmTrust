@@ -60,11 +60,16 @@ function AuthGate() {
 
   useEffect(() => {
     if (isLoading) return;
-    const inAuthGroup = segments[0] === 'login';
+    const firstSegment = segments[0] as string | undefined;
+    const secondSegment = segments[1] as string | undefined;
+    const inAuthGroup = firstSegment === 'login' || firstSegment === 'signup';
+    const onboardingComplete = user?.onboarding_completed === true;
     if (!user && !inAuthGroup) {
       router.replace('/login');
+    } else if (user && !onboardingComplete && (! (firstSegment === '(tabs)' && secondSegment === 'orchard'))) {
+      router.replace('/(tabs)/orchard');
     } else if (user && inAuthGroup) {
-      router.replace('/(tabs)');
+      router.replace(onboardingComplete ? '/(tabs)' : '/(tabs)/orchard');
     }
   }, [user, isLoading, segments]);
 
@@ -80,6 +85,7 @@ function RootLayoutNav() {
         <AuthGate />
         <Stack>
           <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="signup" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>

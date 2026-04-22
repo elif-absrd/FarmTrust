@@ -18,9 +18,14 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-const generateToken = (userId, walletAddress) => {
+const generateToken = (user) => {
   return jwt.sign(
-    { userId, walletAddress },
+    {
+      userId: user.id,
+      walletAddress: user.walletAddress || null,
+      email: user.email,
+      role: user.role || 'FARMER',
+    },
     process.env.JWT_SECRET || 'your_jwt_secret_key_change_this',
     { expiresIn: process.env.JWT_EXPIRE || '7d' }
   );
