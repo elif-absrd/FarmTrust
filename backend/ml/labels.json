@@ -1,0 +1,230 @@
+[
+  {
+    "id": 0,
+    "raw": "Apple___Apple_scab",
+    "display": "Apple - Apple scab",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 1,
+    "raw": "Apple___Black_rot",
+    "display": "Apple - Black rot",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 2,
+    "raw": "Apple___Cedar_apple_rust",
+    "display": "Apple - Cedar apple rust",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 3,
+    "raw": "Apple___healthy",
+    "display": "Apple - healthy",
+    "diseaseType": "Healthy"
+  },
+  {
+    "id": 4,
+    "raw": "Blueberry___healthy",
+    "display": "Blueberry - healthy",
+    "diseaseType": "Healthy"
+  },
+  {
+    "id": 5,
+    "raw": "Cherry_(including_sour)___Powdery_mildew",
+    "display": "Cherry (including sour) - Powdery mildew",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 6,
+    "raw": "Cherry_(including_sour)___healthy",
+    "display": "Cherry (including sour) - healthy",
+    "diseaseType": "Healthy"
+  },
+  {
+    "id": 7,
+    "raw": "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+    "display": "Corn (maize) - Cercospora leaf spot Gray leaf spot",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 8,
+    "raw": "Corn_(maize)___Common_rust_",
+    "display": "Corn (maize) - Common rust ",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 9,
+    "raw": "Corn_(maize)___Northern_Leaf_Blight",
+    "display": "Corn (maize) - Northern Leaf Blight",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 10,
+    "raw": "Corn_(maize)___healthy",
+    "display": "Corn (maize) - healthy",
+    "diseaseType": "Healthy"
+  },
+  {
+    "id": 11,
+    "raw": "Grape___Black_rot",
+    "display": "Grape - Black rot",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 12,
+    "raw": "Grape___Esca_(Black_Measles)",
+    "display": "Grape - Esca (Black Measles)",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 13,
+    "raw": "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)",
+    "display": "Grape - Leaf blight (Isariopsis Leaf Spot)",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 14,
+    "raw": "Grape___healthy",
+    "display": "Grape - healthy",
+    "diseaseType": "Healthy"
+  },
+  {
+    "id": 15,
+    "raw": "Orange___Haunglongbing_(Citrus_greening)",
+    "display": "Orange - Haunglongbing (Citrus greening)",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 16,
+    "raw": "Peach___Bacterial_spot",
+    "display": "Peach - Bacterial spot",
+    "diseaseType": "Bacterial"
+  },
+  {
+    "id": 17,
+    "raw": "Peach___healthy",
+    "display": "Peach - healthy",
+    "diseaseType": "Healthy"
+  },
+  {
+    "id": 18,
+    "raw": "Pepper,_bell___Bacterial_spot",
+    "display": "Pepper, bell - Bacterial spot",
+    "diseaseType": "Bacterial"
+  },
+  {
+    "id": 19,
+    "raw": "Pepper,_bell___healthy",
+    "display": "Pepper, bell - healthy",
+    "diseaseType": "Healthy"
+  },
+  {
+    "id": 20,
+    "raw": "Potato___Early_blight",
+    "display": "Potato - Early blight",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 21,
+    "raw": "Potato___Late_blight",
+    "display": "Potato - Late blight",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 22,
+    "raw": "Potato___healthy",
+    "display": "Potato - healthy",
+    "diseaseType": "Healthy"
+  },
+  {
+    "id": 23,
+    "raw": "Raspberry___healthy",
+    "display": "Raspberry - healthy",
+    "diseaseType": "Healthy"
+  },
+  {
+    "id": 24,
+    "raw": "Soybean___healthy",
+    "display": "Soybean - healthy",
+    "diseaseType": "Healthy"
+  },
+  {
+    "id": 25,
+    "raw": "Squash___Powdery_mildew",
+    "display": "Squash - Powdery mildew",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 26,
+    "raw": "Strawberry___Leaf_scorch",
+    "display": "Strawberry - Leaf scorch",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 27,
+    "raw": "Strawberry___healthy",
+    "display": "Strawberry - healthy",
+    "diseaseType": "Healthy"
+  },
+  {
+    "id": 28,
+    "raw": "Tomato___Bacterial_spot",
+    "display": "Tomato - Bacterial spot",
+    "diseaseType": "Bacterial"
+  },
+  {
+    "id": 29,
+    "raw": "Tomato___Early_blight",
+    "display": "Tomato - Early blight",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 30,
+    "raw": "Tomato___Late_blight",
+    "display": "Tomato - Late blight",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 31,
+    "raw": "Tomato___Leaf_Mold",
+    "display": "Tomato - Leaf Mold",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 32,
+    "raw": "Tomato___Septoria_leaf_spot",
+    "display": "Tomato - Septoria leaf spot",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 33,
+    "raw": "Tomato___Spider_mites Two-spotted_spider_mite",
+    "display": "Tomato - Spider mites Two-spotted spider mite",
+    "diseaseType": "Pest"
+  },
+  {
+    "id": 34,
+    "raw": "Tomato___Target_Spot",
+    "display": "Tomato - Target Spot",
+    "diseaseType": "Fungal"
+  },
+  {
+    "id": 35,
+    "raw": "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
+    "display": "Tomato - Tomato Yellow Leaf Curl Virus",
+    "diseaseType": "Viral"
+  },
+  {
+    "id": 36,
+    "raw": "Tomato___Tomato_mosaic_virus",
+    "display": "Tomato - Tomato mosaic virus",
+    "diseaseType": "Viral"
+  },
+  {
+    "id": 37,
+    "raw": "Tomato___healthy",
+    "display": "Tomato - healthy",
+    "diseaseType": "Healthy"
+  }
+]

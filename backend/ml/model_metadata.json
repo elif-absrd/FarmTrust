@@ -1,0 +1,38 @@
+{
+  "modelName": "farmtrust_disease_classifier",
+  "modelVersion": "1.0.0",
+  "createdAtUTC": "2026-04-23T22:55:41.510641+00:00",
+  "dataset": "vipoooool/new-plant-diseases-dataset",
+  "input": {
+    "width": 224,
+    "height": 224,
+    "channels": 3,
+    "dtype": "float32",
+    "preprocess": {
+      "name": "mobilenet_v2_preprocess_input",
+      "formula": "(pixel / 127.5) - 1.0",
+      "pixelRangeIn": [
+        0,
+        255
+      ],
+      "pixelRangeOut": [
+        -1,
+        1
+      ]
+    }
+  },
+  "output": {
+    "type": "softmax",
+    "numClasses": 38,
+    "labelsFile": "labels.json",
+    "healthyKeyword": "healthy"
+  },
+  "severityRule": {
+    "description": "Derived for claims: healthy => 0.0 else clamp(confidence, 0.05, 0.99)",
+    "formula": "if healthy then 0.0 else min(0.99, max(0.05, confidence))"
+  },
+  "metrics": {
+    "valAccuracy": 0.9596517086029053,
+    "valLoss": 0.12345750629901886
+  }
+}

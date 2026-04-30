@@ -13,9 +13,14 @@ router.post('/submit', authenticateToken, async (req, res) => {
   try {
     const { farmId, policyId, diseaseImageHash, diseaseType, diseaseSeverity } = req.body;
     const userId = req.user.userId;
+    const severityNumber = Number(diseaseSeverity);
 
-    if (!farmId || !diseaseImageHash || !diseaseSeverity) {
+    if (!farmId || !diseaseImageHash || diseaseSeverity === undefined || diseaseSeverity === null) {
       return res.status(400).json({ error: 'Farm ID, disease image hash, and severity are required' });
+    }
+
+    if (!Number.isFinite(severityNumber) || severityNumber < 0 || severityNumber > 1) {
+      return res.status(400).json({ error: 'Disease severity must be a number between 0 and 1' });
     }
 
     // Verify farm belongs to user
@@ -38,13 +43,13 @@ router.post('/submit', authenticateToken, async (req, res) => {
         policyId: policyId ? Number(policyId) : null,
         diseaseImageHash,
         diseaseType: diseaseType || null,
-        diseaseSeverity: Number(diseaseSeverity),
+        diseaseSeverity: severityNumber,
         status: 'pending',
       },
     });
 
     // If severity is high enough, trigger NDVI verification
-    if (Number(diseaseSeverity) > 0.6) {
+    if (severityNumber > 0.6) {
       try {
         console.log(`🛰️  Triggering NDVI verification for farm ${farmId}`);
 
