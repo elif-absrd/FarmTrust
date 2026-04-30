@@ -9,6 +9,7 @@ const { startNdviSyncScheduler } = require('./services/ndviSync');
 const authRoutes = require('./routes/auth');
 const farmsRoutes = require('./routes/farms');
 const claimsRoutes = require('./routes/claims');
+const riskRoutes = require('./routes/risk');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -50,6 +51,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/farms', farmsRoutes);
 app.use('/api/claims', claimsRoutes);
+app.use('/api/risk', riskRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -86,6 +88,8 @@ const startServer = async () => {
       console.log('  GET    /api/claims');
       console.log('  POST   /api/claims/submit');
       console.log('  GET    /api/claims/:claimId');
+      console.log('  POST   /api/risk/evaluate');
+      console.log('  GET    /api/risk/logs');
       console.log(`\n💡 NDVI Service: ${NDVI_SERVICE_URL}`);
       console.log(`   Frontend URL: ${FRONTEND_URL}\n`);
       

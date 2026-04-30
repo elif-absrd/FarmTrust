@@ -55,6 +55,7 @@ model User {
   farms    Farm[]
   policies Policy[]
   orchardRegistration OrchardRegistration?
+  riskEvaluationLogs RiskEvaluationLog[]
 
   @@map("users")
 }
@@ -100,6 +101,7 @@ model Farm {
   ndviHistory NdviHistory[]
   policies    Policy[]
   orchardRegistration OrchardRegistration?
+  riskEvaluationLogs RiskEvaluationLog[]
 
   @@map("farms")
 }
@@ -209,4 +211,30 @@ model Claim {
   policy Policy? @relation(fields: [policyId], references: [id])
 
   @@map("claims")
+}
+
+model RiskEvaluationLog {
+  id                        Int      @id @default(autoincrement())
+  farmId                    Int?     @map("farm_id")
+  userId                    Int?     @map("user_id")
+  soilPh                    Decimal? @map("soil_ph") @db.Decimal(5, 2)
+  soilMoisture              Decimal? @map("soil_moisture") @db.Decimal(5, 2)
+  soilNutrient              Decimal? @map("soil_nutrient") @db.Decimal(5, 2)
+  weatherTemperature        Decimal? @map("weather_temperature") @db.Decimal(5, 2)
+  weatherHumidity           Decimal? @map("weather_humidity") @db.Decimal(5, 2)
+  weatherRainfall           Decimal? @map("weather_rainfall") @db.Decimal(7, 2)
+  previousDiseaseRiskScore  Decimal? @map("previous_disease_risk_score") @db.Decimal(5, 2)
+  pastDiseaseOccurrences    Int?     @map("past_disease_occurrences")
+  soilScore                 Decimal? @map("soil_score") @db.Decimal(5, 2)
+  weatherScore              Decimal? @map("weather_score") @db.Decimal(5, 2)
+  cropScore                 Decimal? @map("crop_score") @db.Decimal(5, 2)
+  compositeScore            Decimal? @map("composite_score") @db.Decimal(5, 2)
+  riskLevel                 Int?     @map("risk_level")
+  decision                  String?  @db.VarChar(50)
+  createdAt                 DateTime @default(now()) @map("created_at")
+
+  farm Farm? @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("risk_evaluation_logs")
 }
