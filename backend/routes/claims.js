@@ -1,105 +1,37 @@
 const express = require('express');
-const axios = require('axios');
 const prisma = require('../config/prisma');
 const { authenticateToken } = require('../middleware/auth');
-
-// Configuration
-const NDVI_SERVICE_URL = process.env.NDVI_SERVICE_URL || 'http://localhost:8000';
+const RiskAssessmentService = require('../riskScoringEngine/service');
 
 const router = express.Router();
+const trustService = new RiskAssessmentService();
 
-// Submit a disease claim
+// Submit a disease claim and run the complete Trust Score Engine workflow.
 router.post('/submit', authenticateToken, async (req, res) => {
   try {
-    const { farmId, policyId, diseaseImageHash, diseaseType, diseaseSeverity } = req.body;
-    const userId = req.user.userId;
-    const severityNumber = Number(diseaseSeverity);
-
-    if (!farmId || !diseaseImageHash || diseaseSeverity === undefined || diseaseSeverity === null) {
-      return res.status(400).json({ error: 'Farm ID, disease image hash, and severity are required' });
-    }
-
-    if (!Number.isFinite(severityNumber) || severityNumber < 0 || severityNumber > 1) {
-      return res.status(400).json({ error: 'Disease severity must be a number between 0 and 1' });
-    }
-
-    // Verify farm belongs to user
-    const farm = await prisma.farm.findFirst({
-      where: {
-        id: Number(farmId),
-        ownerId: userId,
-      },
-      select: { id: true },
-    });
-
-    if (!farm) {
-      return res.status(404).json({ error: 'Farm not found' });
-    }
-
-    // Create claim record
-    const claim = await prisma.claim.create({
-      data: {
-        farmId: Number(farmId),
-        policyId: policyId ? Number(policyId) : null,
-        diseaseImageHash,
-        diseaseType: diseaseType || null,
-        diseaseSeverity: severityNumber,
-        status: 'pending',
-      },
-    });
-
-    // If severity is high enough, trigger NDVI verification
-    if (severityNumber > 0.6) {
-      try {
-        console.log(`🛰️  Triggering NDVI verification for farm ${farmId}`);
-
-        const ndviResult = await axios.post(
-          `${NDVI_SERVICE_URL}/api/ndvi/verify-claim`,
-          {
-            farm_id: farmId,
-            current_ndvi: null // Let Python service fetch current
-          },
-          { timeout: 30000 }
-        );
-
-        // Update claim with NDVI results
-        const updatedClaim = await prisma.claim.update({
-          where: { id: claim.id },
-          data: {
-            ndviVerified: Boolean(ndviResult.data.verified),
-            ndviBaseline: ndviResult.data.ndvi_baseline,
-            ndviCurrent: ndviResult.data.ndvi_current,
-            ndviDropPercentage: ndviResult.data.drop_percentage,
-          },
-        });
-
-        return res.status(201).json({
-          message: 'Claim submitted with NDVI verification',
-          claim: updatedClaim,
-          ndvi_data: ndviResult.data
-        });
-      } catch (ndviError) {
-        console.warn('⚠️  NDVI verification failed, storing claim without NDVI data:', ndviError.message);
-
-        return res.status(201).json({
-          message: 'Claim submitted (NDVI verification unavailable)',
-          claim,
-          ndvi_error: ndviError.message
-        });
-      }
-    }
+    const result = await trustService.submitClaimWithTrustScore(req.user.userId, req.body);
 
     res.status(201).json({
-      message: 'Claim submitted',
-      claim
+      message: 'Claim submitted with Trust Score routing',
+      claim: result.claim,
+      trustScore: result.trustScore,
+      componentScores: result.componentScores,
+      routingTier: result.routingTier,
+      status: result.status,
+      reportHash: result.reportHash,
     });
   } catch (error) {
     console.error('Claim submission error:', error);
-    res.status(500).json({ error: 'Claim submission failed' });
+    const message = error instanceof Error ? error.message : 'Claim submission failed';
+    const statusCode =
+      message.includes('not found') ? 404 :
+        message.includes('required') || message.includes('severity') ? 400 :
+          500;
+    res.status(statusCode).json({ error: message });
   }
 });
 
-// Get claims for user
+// Get claims for user, including the Trust Score component fields used by admin review.
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -113,16 +45,14 @@ router.get('/', authenticateToken, async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({
-      claims
-    });
+    res.json({ claims });
   } catch (error) {
     console.error('Fetch claims error:', error);
     res.status(500).json({ error: 'Failed to fetch claims' });
   }
 });
 
-// Get claim by ID
+// Get claim by ID.
 router.get('/:claimId', authenticateToken, async (req, res) => {
   try {
     const { claimId } = req.params;
@@ -141,9 +71,7 @@ router.get('/:claimId', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Claim not found' });
     }
 
-    res.json({
-      claim
-    });
+    res.json({ claim });
   } catch (error) {
     console.error('Fetch claim error:', error);
     res.status(500).json({ error: 'Failed to fetch claim' });

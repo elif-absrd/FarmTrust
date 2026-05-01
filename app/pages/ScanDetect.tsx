@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, Image, Platform } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { PageWrapper } from '../components/PageWrapper';
 import { SeverityBadge } from '../components/SeverityBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -48,6 +49,12 @@ interface Prediction {
 
 interface PredictResponse {
   imageHash: string;
+  ipfsHash?: string;
+  ipfs?: {
+    ipfsHash: string;
+    ipfsProvider: string;
+    ipfsPinned: boolean;
+  };
   expectedCrop?: string | null;
   prediction: Prediction;
   trace?: {
@@ -82,7 +89,13 @@ interface ClaimSubmitResponse {
   message: string;
   claim: {
     id: number;
+    routingTier?: string | null;
+    trustScore?: string | number | null;
   };
+  trustScore?: number;
+  routingTier?: string;
+  status?: string;
+  reportHash?: string;
 }
 
 interface PickedImage {
@@ -91,6 +104,25 @@ interface PickedImage {
   mimeType: string;
   webFile?: Blob | null;
 }
+
+interface GpsPoint {
+  latitude: number;
+  longitude: number;
+  accuracy?: number | null;
+  timestamp: string;
+}
+
+interface ScanEvidence {
+  gps: GpsPoint;
+  ipfsHash: string;
+  imageHash: string;
+  diseaseType: string;
+  severity: number;
+  sessionId: string;
+}
+
+const CLAIM_SEVERITY_THRESHOLD = 0.6;
+const MIN_CLAIM_GPS_POINTS = 5;
 
 function severityFromScore(score: number): 'Low' | 'Medium' | 'High' {
   if (score >= 0.7) return 'High';
@@ -161,6 +193,10 @@ function deriveExpectedCrop(farm: Farm | null, availableCrops: string[]) {
   return null;
 }
 
+function createSessionId() {
+  return globalThis.crypto?.randomUUID?.() || `scan-session-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+}
+
 export default function ScanDetect() {
   const { token } = useAuth();
   const [scanState, setScanState] = useState<ScanState>('idle');
@@ -174,6 +210,8 @@ export default function ScanDetect() {
   const [selectedExpectedCrop, setSelectedExpectedCrop] = useState<string | null>(null);
   const [manualCropSelection, setManualCropSelection] = useState(false);
   const [submittingClaim, setSubmittingClaim] = useState(false);
+  const [scanSessionId, setScanSessionId] = useState(createSessionId);
+  const [scanEvidence, setScanEvidence] = useState<ScanEvidence[]>([]);
 
   useEffect(() => {
     if (!token) return;
@@ -252,6 +290,15 @@ export default function ScanDetect() {
   }, [prediction]);
 
   const selectedFarm = farms.find((farm) => farm.id === selectedFarmId) || null;
+  const latestSeverityPasses =
+    !!prediction &&
+    prediction.isPlantDetected !== false &&
+    prediction.diseaseType !== 'Unknown' &&
+    prediction.diseaseSeverity >= CLAIM_SEVERITY_THRESHOLD;
+  const diseaseEvidenceCount = prediction
+    ? scanEvidence.filter((item) => item.diseaseType === prediction.diseaseType).length
+    : 0;
+  const claimReady = latestSeverityPasses && diseaseEvidenceCount >= MIN_CLAIM_GPS_POINTS;
 
   useEffect(() => {
     if (manualCropSelection || !availableCrops.length) return;
@@ -271,6 +318,8 @@ export default function ScanDetect() {
     const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % farms.length : 0;
     setSelectedFarmId(farms[nextIndex].id);
     setManualCropSelection(false);
+    setScanSessionId(createSessionId());
+    setScanEvidence([]);
   };
 
   const cycleExpectedCrop = () => {
@@ -294,6 +343,20 @@ export default function ScanDetect() {
     setScanState('scanning');
 
     try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        throw new Error('Location permission is required so every scan image can carry GPS evidence.');
+      }
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const gpsPoint: GpsPoint = {
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+        accuracy: currentLocation.coords.accuracy,
+        timestamp: new Date(currentLocation.timestamp || Date.now()).toISOString(),
+      };
+
       const formData = new FormData();
       if (selectedExpectedCrop) {
         formData.append('expectedCrop', selectedExpectedCrop);
@@ -325,6 +388,24 @@ export default function ScanDetect() {
       setImageHash(response.imageHash);
       setScanState('result');
 
+      const ipfsHash = response.ipfsHash || response.ipfs?.ipfsHash || `local-ipfs-${response.imageHash}`;
+      if (
+        response.prediction.isPlantDetected !== false &&
+        response.prediction.diseaseType !== 'Unknown'
+      ) {
+        setScanEvidence((previous) => [
+          ...previous,
+          {
+            gps: gpsPoint,
+            ipfsHash,
+            imageHash: response.imageHash,
+            diseaseType: response.prediction.diseaseType,
+            severity: response.prediction.diseaseSeverity,
+            sessionId: scanSessionId,
+          },
+        ]);
+      }
+
       console.info('[ML trace]', {
         requestId: response.trace?.requestId,
         imageHash: response.imageHash,
@@ -336,6 +417,7 @@ export default function ScanDetect() {
         modelVersion: response.trace?.model?.version,
         modelSha256: response.trace?.model?.sha256,
         durationMs: response.trace?.durationMs,
+        ipfsHash,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to process image';
@@ -424,13 +506,25 @@ export default function ScanDetect() {
       return;
     }
 
+    if (prediction.diseaseSeverity < CLAIM_SEVERITY_THRESHOLD) {
+      Alert.alert(
+        'Severity below threshold',
+        `Submit claim unlocks at ${(CLAIM_SEVERITY_THRESHOLD * 100).toFixed(0)}% disease severity.`,
+      );
+      return;
+    }
+
     if (!selectedFarmId) {
       Alert.alert('No registered farm', 'Register an orchard first, then submit a claim.');
       return;
     }
 
-    if (!imageHash) {
-      Alert.alert('Missing image hash', 'Please scan the image again.');
+    const evidenceForDisease = scanEvidence.filter((item) => item.diseaseType === prediction.diseaseType);
+    if (evidenceForDisease.length < MIN_CLAIM_GPS_POINTS) {
+      Alert.alert(
+        'More GPS evidence needed',
+        `Capture at least ${MIN_CLAIM_GPS_POINTS} disease scans inside the farm polygon before submitting.`,
+      );
       return;
     }
 
@@ -442,15 +536,23 @@ export default function ScanDetect() {
           method: 'POST',
           body: JSON.stringify({
             farmId: selectedFarmId,
-            diseaseImageHash: imageHash,
+            gpsArray: evidenceForDisease.map((item) => item.gps),
             diseaseType: prediction.diseaseType,
+            ipfsHashes: evidenceForDisease.map((item) => item.ipfsHash),
+            sessionId: scanSessionId,
+            diseaseImageHash: imageHash,
             diseaseSeverity: prediction.diseaseSeverity,
           }),
         },
         token,
       );
 
-      Alert.alert('Claim submitted ✅', `${response.message}. Claim ID: ${response.claim.id}`);
+      Alert.alert(
+        'Claim submitted',
+        `${response.message}. Claim ID: ${response.claim.id}. Route: ${response.routingTier || 'N/A'}. Trust Score: ${response.trustScore ?? 'N/A'}`,
+      );
+      setScanSessionId(createSessionId());
+      setScanEvidence([]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Claim submission failed';
       Alert.alert('Claim submission failed', message);
@@ -583,6 +685,17 @@ export default function ScanDetect() {
                   <Text style={styles.crop}>
                     Severity Score: <Text style={styles.cropValue}>{prediction.diseaseSeverity.toFixed(2)}</Text>
                   </Text>
+                  <Text style={styles.crop}>
+                    Claim Evidence:{' '}
+                    <Text style={styles.cropValue}>
+                      {diseaseEvidenceCount}/{MIN_CLAIM_GPS_POINTS} GPS-tagged scans
+                    </Text>
+                  </Text>
+                  {!latestSeverityPasses && (
+                    <Text style={styles.lowConfidenceNote}>
+                      Submit claim unlocks when severity reaches {CLAIM_SEVERITY_THRESHOLD.toFixed(2)}.
+                    </Text>
+                  )}
                   {!!predictionTrace?.requestId && (
                     <View style={styles.traceBox}>
                       <Text style={styles.traceTitle}>Inference Trace</Text>
@@ -625,12 +738,12 @@ export default function ScanDetect() {
               onPress={fileClaim}
               variant="destructive"
               style={styles.actionButton}
-              disabled={submittingClaim || !farms.length || prediction?.isPlantDetected === false}
+              disabled={submittingClaim || !farms.length || !claimReady}
             >
               <View style={styles.buttonContent}>
                 <AlertTriangle color="white" size={16} />
                 <Text style={styles.buttonTextWhite}>
-                  {submittingClaim ? 'Submitting...' : 'File Insurance Claim'}
+                  {submittingClaim ? 'Submitting...' : 'Submit Claim'}
                 </Text>
               </View>
             </Button>

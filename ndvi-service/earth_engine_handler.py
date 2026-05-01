@@ -14,6 +14,20 @@ def initialize_earth_engine():
     The credentials will be cached in ~/.config/earthengine/
     """
     try:
+        project_id = os.getenv("GEE_PROJECT_ID") or os.getenv("EE_PROJECT_ID") or "farmtrust-project"
+        use_direct = os.getenv("GEE_USE_DIRECT", "false").lower() == "true"
+        if use_direct:
+            key_file = os.getenv("GEE_SERVICE_ACCOUNT_KEY_FILE") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            if not key_file:
+                raise ValueError("GEE service account key file is required")
+            with open(key_file, "r", encoding="utf-8") as credential_file:
+                credential_json = json.load(credential_file)
+            service_account = credential_json.get("client_email")
+            credentials = ee.ServiceAccountCredentials(service_account, key_file)
+            ee.Initialize(credentials, project=project_id)
+            logger.info("Earth Engine initialized with service account")
+            return
+
         # Check if credentials exist
         credentials_path = os.path.expanduser("~/.config/earthengine/authenticated_user.json")
 
@@ -28,7 +42,8 @@ def initialize_earth_engine():
             logger.info("   4. Paste token in console")
             ee.Authenticate()
 
-        ee.Initialize(project="farmtrust-project")
+        project_id = os.getenv("GEE_PROJECT_ID") or os.getenv("EE_PROJECT_ID") or "farmtrust-project"
+        ee.Initialize(project=project_id)
         logger.info("✅ Earth Engine initialized")
 
     except Exception as e:

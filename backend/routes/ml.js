@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const fs = require('fs');
+const axios = require('axios');
 const multer = require('multer');
 const path = require('path');
 const { execFile } = require('child_process');
@@ -128,6 +129,50 @@ async function runModelInference(imagePath, expectedCrop) {
   return parsed;
 }
 
+async function uploadImageToPinata(imagePath, originalName, imageHash) {
+  const fallbackHash = `local-ipfs-${imageHash}`;
+  if (!process.env.PINATA_JWT || typeof FormData === 'undefined' || typeof Blob === 'undefined') {
+    return {
+      ipfsHash: fallbackHash,
+      ipfsProvider: 'local',
+      ipfsPinned: false,
+    };
+  }
+
+  try {
+    const fileBytes = await fs.promises.readFile(imagePath);
+    const formData = new FormData();
+    formData.append('file', new Blob([fileBytes]), originalName || `${imageHash}.jpg`);
+    formData.append(
+      'pinataMetadata',
+      JSON.stringify({
+        name: `FarmTrust ML evidence ${imageHash.slice(0, 12)}`,
+      }),
+    );
+
+    const response = await axios.post('https://api.pinata.cloud/pinning/pinFileToIPFS', formData, {
+      headers: {
+        Authorization: `Bearer ${process.env.PINATA_JWT}`,
+      },
+      timeout: 30000,
+    });
+
+    return {
+      ipfsHash: response.data?.IpfsHash || fallbackHash,
+      ipfsProvider: 'pinata',
+      ipfsPinned: Boolean(response.data?.IpfsHash),
+    };
+  } catch (error) {
+    console.warn('[ML] Pinata upload failed; using local IPFS placeholder hash:', error.message);
+    return {
+      ipfsHash: fallbackHash,
+      ipfsProvider: 'local',
+      ipfsPinned: false,
+      ipfsError: error.message,
+    };
+  }
+}
+
 router.get('/crops', authenticateToken, async (_req, res) => {
   try {
     const crops = await loadSupportedCrops();
@@ -159,6 +204,7 @@ router.post('/predict', authenticateToken, upload.single('image'), async (req, r
     );
 
     const prediction = await runModelInference(uploadedPath, expectedCrop || null);
+    const ipfs = await uploadImageToPinata(uploadedPath, req.file?.originalname, imageHash);
     const durationMs = Date.now() - startedAt;
     const modelDiagnostics = prediction?.modelDiagnostics || {};
     const modelFile = modelDiagnostics.model || {};
@@ -185,6 +231,7 @@ router.post('/predict', authenticateToken, upload.single('image'), async (req, r
         modelConfidence: prediction?.modelConfidence ?? null,
         predictionMode: prediction?.predictionMode || null,
       },
+      ipfs,
     };
 
     // Extract image quality diagnostics from prediction if available
@@ -219,6 +266,8 @@ router.post('/predict', authenticateToken, upload.single('image'), async (req, r
     res.json({
       message: 'Prediction generated successfully',
       imageHash,
+      ipfsHash: ipfs.ipfsHash,
+      ipfs,
       expectedCrop: expectedCrop || null,
       prediction,
       trace,

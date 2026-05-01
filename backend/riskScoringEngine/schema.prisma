@@ -1,0 +1,156 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * RISK ASSESSMENT DATA MODEL
+ * 
+ * Stores all risk assessment records with complete input/output tracking
+ * Enables historical analysis, trend identification, and audit trails
+ */
+model RiskAssessment {
+  id Int @id @default(autoincrement())
+
+  // FARM IDENTIFIER
+  farmId String @db.VarChar(255)
+
+  // ============================================================================
+  // INPUT DATA - Soil Parameters
+  // ============================================================================
+  // Soil conditions directly affect crop health and disease susceptibility
+  
+  soilPH Decimal @db.Decimal(3, 1)
+  /// Soil pH level (0-14 scale). Ideal: 6.0-7.0
+  
+  soilMoisture Decimal @db.Decimal(5, 2)
+  /// Soil moisture percentage (0-100%). Ideal: 25-35%
+  
+  soilNutrient Decimal @db.Decimal(3, 1)
+  /// Nutrient level (1-5 scale). Represents overall fertility. Ideal: 2.5-3.5
+
+  // ============================================================================
+  // INPUT DATA - Weather Parameters
+  // ============================================================================
+  // Environmental conditions influence disease risk and growth patterns
+  
+  weatherTemperature Decimal @db.Decimal(5, 2)
+  /// Air temperature in Celsius. Ideal: 20-30°C
+  
+  weatherHumidity Decimal @db.Decimal(5, 2)
+  /// Relative humidity percentage (0-100%). Ideal: 40-70%
+  /// High humidity (>80%) increases fungal disease risk significantly
+  
+  weatherRainfall Decimal @db.Decimal(7, 2)
+  /// Monthly rainfall in millimeters. Ideal: 100-200mm
+
+  // ============================================================================
+  // INPUT DATA - Crop History Parameters
+  // ============================================================================
+  // Historical disease data indicates crop susceptibility
+  
+  cropPreviousDiseaseRiskScore Int
+  /// Previous risk assessment score (0-100). Higher = worse health
+  
+  cropPastDiseaseOccurrences Int
+  /// Count of past disease events. Multiple occurrences increase recurrence likelihood
+
+  // ============================================================================
+  // CALCULATED SCORES
+  // ============================================================================
+  // Individual component scores (0-100 scale)
+  
+  soilScore Int
+  /// Calculated soil health score. Normalized to 0-100
+  
+  weatherScore Int
+  /// Calculated weather risk score. Normalized to 0-100
+  
+  cropScore Int
+  /// Calculated crop health score. Normalized to 0-100
+  
+  compositeScore Int
+  /// Weighted composite score:
+  /// Formula: (soilScore × 0.40) + (weatherScore × 0.30) + (cropScore × 0.30)
+  /// Range: 0-100
+
+  // ============================================================================
+  // RISK CLASSIFICATION & DECISION
+  // ============================================================================
+  
+  riskLevel Int
+  /// Risk level classification (1-5)
+  /// Level 1: 80-100 (Very Low Risk)
+  /// Level 2: 65-79  (Low Risk)
+  /// Level 3: 50-64  (Moderate Risk)
+  /// Level 4: 35-49  (High Risk)
+  /// Level 5: 0-34   (Very High Risk)
+  
+  riskLevelName String
+  /// Human-readable risk level name
+  
+  decision String
+  /// Final decision: "APPROVED" or "FLAGGED FOR REVIEW"
+  /// APPROVED: Risk levels 1-2 (score >= 65)
+  /// FLAGGED: Risk levels 3-5 (score < 65)
+  
+  recommendation String @db.Text
+  /// Actionable recommendation for farm management
+
+  // ============================================================================
+  // AUDIT & TRACKING
+  // ============================================================================
+  
+  status String @default("completed")
+  /// Record status: "completed", "flagged", "under_review", "resolved"
+  /// Allows tracking of management actions and follow-ups
+  
+  createdAt DateTime @default(now())
+  /// When the assessment was performed
+  
+  updatedAt DateTime @default(now()) @updatedAt
+  /// Last update timestamp
+
+  // ============================================================================
+  // INDEXES - Performance Optimization
+  // ============================================================================
+  
+  @@index([farmId])
+  @@index([createdAt])
+  @@index([status])
+  @@index([riskLevel])
+}
+
+/**
+ * OPTIONAL FUTURE MODELS
+ * 
+ * Consider adding these for enhanced functionality:
+ * 
+ * 1. Farm model - Store farm metadata and relationships
+ *    - farmId (reference)
+ *    - name, location, cropType
+ *    - owner, contact info
+ *    - Size, coordinates
+ * 
+ * 2. Assessment Review model - Track human reviews and interventions
+ *    - assessmentId (foreign key)
+ *    - reviewedBy, reviewedAt
+ *    - actionTaken, notes
+ * 
+ * 3. Alerts model - Store triggered alerts
+ *    - farmId (reference)
+ *    - alertType, severity
+ *    - message, createdAt
+ * 
+ * 4. Intervention model - Track management actions
+ *    - farmId (reference)
+ *    - type, date, details
+ *    - effectiveness rating
+ */

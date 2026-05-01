@@ -98,6 +98,7 @@ model Farm {
   owner       User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   claims      Claim[]
   ndviHistory NdviHistory[]
+  scanSessions ScanSession[]
   policies    Policy[]
   orchardRegistration OrchardRegistration?
 
@@ -197,10 +198,22 @@ model Claim {
   diseaseImageHash   String?   @map("disease_image_hash") @db.VarChar(255)
   diseaseType        String?   @map("disease_type") @db.VarChar(255)
   diseaseSeverity    Decimal?  @map("disease_severity") @db.Decimal(3, 2)
+  gpsArray           Json?     @map("gps_array")
+  ipfsHashes         Json?     @map("ipfs_hashes")
+  sessionId          String?   @map("session_id") @db.VarChar(255)
   ndviVerified       Boolean   @default(false) @map("ndvi_verified")
   ndviBaseline       Decimal?  @map("ndvi_baseline") @db.Decimal(5, 3)
   ndviCurrent        Decimal?  @map("ndvi_current") @db.Decimal(5, 3)
   ndviDropPercentage Decimal?  @map("ndvi_drop_percentage") @db.Decimal(5, 2)
+  trustScore         Decimal?  @map("trust_score") @db.Decimal(4, 3)
+  nScore             Decimal?  @map("n_score") @db.Decimal(4, 3)
+  gScore             Decimal?  @map("g_score") @db.Decimal(4, 3)
+  tScore             Decimal?  @map("t_score") @db.Decimal(4, 3)
+  wScore             Decimal?  @map("w_score") @db.Decimal(4, 3)
+  pScore             Decimal?  @map("p_score") @db.Decimal(4, 3)
+  routingTier        String?   @map("routing_tier") @db.VarChar(50)
+  trustReportHash    String?   @map("trust_report_hash") @db.VarChar(255)
+  trustReportJson    Json?     @map("trust_report_json")
   status             String?   @db.VarChar(50)
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
@@ -209,4 +222,65 @@ model Claim {
   policy Policy? @relation(fields: [policyId], references: [id])
 
   @@map("claims")
+}
+
+model ScanSession {
+  id          Int      @id @default(autoincrement())
+  farmId      Int      @map("farm_id")
+  diseaseType String   @map("disease_type") @db.VarChar(255)
+  sessionData String   @map("session_data") @db.VarChar(255)
+  gpsArray    Json?    @map("gps_array")
+  ipfsHashes  Json?    @map("ipfs_hashes")
+  sessionDate DateTime @default(now()) @map("session_date")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  farm Farm @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@index([farmId, diseaseType, sessionDate])
+  @@map("scan_sessions")
+}
+
+model DiseaseWeatherProfile {
+  id                   Int      @id @default(autoincrement())
+  diseaseType          String   @unique @map("disease_type") @db.VarChar(255)
+  tempMin              Decimal? @map("temp_min") @db.Decimal(5, 2)
+  tempMax              Decimal? @map("temp_max") @db.Decimal(5, 2)
+  precipitationMin     Decimal? @map("precipitation_min") @db.Decimal(7, 2)
+  precipitationMax     Decimal? @map("precipitation_max") @db.Decimal(7, 2)
+  humidityMin          Decimal? @map("humidity_min") @db.Decimal(5, 2)
+  humidityMax          Decimal? @map("humidity_max") @db.Decimal(5, 2)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("disease_weather_profile")
+}
+
+model RiskAssessment {
+  id                           Int      @id @default(autoincrement())
+  farmId                       String   @map("farm_id") @db.VarChar(255)
+  soilPH                       Decimal  @map("soil_ph") @db.Decimal(3, 1)
+  soilMoisture                 Decimal  @map("soil_moisture") @db.Decimal(5, 2)
+  soilNutrient                 Decimal  @map("soil_nutrient") @db.Decimal(3, 1)
+  weatherTemperature           Decimal  @map("weather_temperature") @db.Decimal(5, 2)
+  weatherHumidity              Decimal  @map("weather_humidity") @db.Decimal(5, 2)
+  weatherRainfall              Decimal  @map("weather_rainfall") @db.Decimal(7, 2)
+  cropPreviousDiseaseRiskScore Int      @map("crop_previous_disease_risk_score")
+  cropPastDiseaseOccurrences   Int      @map("crop_past_disease_occurrences")
+  soilScore                    Int      @map("soil_score")
+  weatherScore                 Int      @map("weather_score")
+  cropScore                    Int      @map("crop_score")
+  compositeScore               Int      @map("composite_score")
+  riskLevel                    Int      @map("risk_level")
+  riskLevelName                String   @map("risk_level_name")
+  decision                     String
+  recommendation               String   @db.Text
+  status                       String   @default("completed")
+  createdAt                    DateTime @default(now()) @map("created_at")
+  updatedAt                    DateTime @updatedAt @map("updated_at")
+
+  @@index([farmId])
+  @@index([createdAt])
+  @@index([status])
+  @@index([riskLevel])
+  @@map("risk_assessments")
 }
