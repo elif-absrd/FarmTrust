@@ -37,6 +37,15 @@ enum ValidationSource {
   MANUAL_REVIEW
 }
 
+enum ClaimStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  SURVEYED_PENDING
+  PAID
+}
+
 model User {
   id            Int       @id @default(autoincrement())
   walletAddress String?   @unique @map("wallet_address") @db.VarChar(255)
@@ -55,6 +64,7 @@ model User {
   farms    Farm[]
   policies Policy[]
   orchardRegistration OrchardRegistration?
+  scanHistory ScanHistory[]
 
   @@map("users")
 }
@@ -100,6 +110,7 @@ model Farm {
   ndviHistory NdviHistory[]
   policies    Policy[]
   orchardRegistration OrchardRegistration?
+  scanHistory ScanHistory[]
 
   @@map("farms")
 }
@@ -119,11 +130,15 @@ model OrchardRegistration {
   pincode              String            @db.VarChar(20)
   landmark             String?           @db.VarChar(255)
   fullAddress          String            @map("full_address") @db.Text
+  areaAcres            Decimal?          @map("area_acres") @db.Decimal(10, 2)
   gpsPolygon           Json              @map("gps_polygon")
   locationLatitude     Decimal?          @map("location_latitude") @db.Decimal(10, 7)
   locationLongitude    Decimal?          @map("location_longitude") @db.Decimal(10, 7)
   numberOfTrees        Int               @map("number_of_trees")
   treeTypes            Json              @map("tree_types")
+  accountNumber        String?           @map("account_number") @db.VarChar(255)
+  accountName          String?           @map("account_name") @db.VarChar(255)
+  bankName             String?           @map("bank_name") @db.VarChar(255)
   subscriptionPlan     SubscriptionPlan  @default(FREE) @map("subscription_plan")
   registrationStatus   RegistrationStatus @default(PENDING) @map("registration_status")
   locationValidated    Boolean           @default(false) @map("location_validated")
@@ -191,22 +206,68 @@ model Policy {
 }
 
 model Claim {
-  id                 Int       @id @default(autoincrement())
-  farmId             Int       @map("farm_id")
-  policyId           Int?      @map("policy_id")
-  diseaseImageHash   String?   @map("disease_image_hash") @db.VarChar(255)
-  diseaseType        String?   @map("disease_type") @db.VarChar(255)
-  diseaseSeverity    Decimal?  @map("disease_severity") @db.Decimal(3, 2)
-  ndviVerified       Boolean   @default(false) @map("ndvi_verified")
-  ndviBaseline       Decimal?  @map("ndvi_baseline") @db.Decimal(5, 3)
-  ndviCurrent        Decimal?  @map("ndvi_current") @db.Decimal(5, 3)
-  ndviDropPercentage Decimal?  @map("ndvi_drop_percentage") @db.Decimal(5, 2)
-  status             String?   @db.VarChar(50)
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  id                   Int          @id @default(autoincrement())
+  farmId               Int          @map("farm_id")
+  farmTokenId          Int
+  farmerWalletAddress  String
+  policyId             Int?         @map("policy_id")
+  diseaseImageHash     String?      @map("disease_image_hash") @db.VarChar(255)
+  diseaseType          String?      @map("disease_type") @db.VarChar(255)
+  diseaseSeverity      Decimal?     @map("disease_severity") @db.Decimal(3, 2)
+  ndviVerified         Boolean      @default(false) @map("ndvi_verified")
+  ndviBaseline         Decimal?     @map("ndvi_baseline") @db.Decimal(5, 3)
+  ndviCurrent          Decimal?     @map("ndvi_current") @db.Decimal(5, 3)
+  ndviDropPercentage   Decimal?     @map("ndvi_drop_percentage") @db.Decimal(5, 2)
+  trustScore           Decimal?     @map("trust_score") @db.Decimal(5, 3)
+  componentScores      Json?        @map("component_scores")
+  ipfsHashes           Json?        @map("ipfs_hashes")
+  txHash               String?      @map("tx_hash") @db.VarChar(255)
+  status               ClaimStatus  @default(PENDING)
+  approvedAt           DateTime?    @map("approved_at")
+  approvedBy           Int?         @map("approved_by")
+  rejectionReason      String?      @map("rejection_reason") @db.Text
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
 
-  farm   Farm    @relation(fields: [farmId], references: [id], onDelete: Cascade)
-  policy Policy? @relation(fields: [policyId], references: [id])
+  farm      Farm        @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  policy    Policy?     @relation(fields: [policyId], references: [id])
+  auditLogs AuditLog[]
 
   @@map("claims")
+}
+
+model AuditLog {
+  id                      Int       @id @default(autoincrement())
+  claimId                 Int       @map("claim_id")
+  action                  String    @db.VarChar(100)
+  imageIpfsHash           String?   @map("image_ipfs_hash") @db.VarChar(255)
+  ndviReportIpfsHash      String?   @map("ndvi_report_ipfs_hash") @db.VarChar(255)
+  thresholdReportIpfsHash String?   @map("threshold_report_ipfs_hash") @db.VarChar(255)
+  trustScore              Decimal?  @map("trust_score") @db.Decimal(5, 3)
+  componentScores         Json?     @map("component_scores")
+  approvedBy              Int?      @map("approved_by")
+  remarks                 String?   @map("remarks") @db.Text
+  createdAt               DateTime  @default(now()) @map("created_at")
+
+  claim                   Claim     @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+}
+
+model ScanHistory {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @map("user_id")
+  farmId          Int?      @map("farm_id")
+  imageHash       String?   @map("image_hash") @db.VarChar(255)
+  predictedClass  String?   @map("predicted_class") @db.VarChar(255)
+  diseaseType     String?   @map("disease_type") @db.VarChar(255)
+  diseaseSeverity Decimal?  @map("disease_severity") @db.Decimal(3, 2)
+  modelConfidence Decimal?  @map("model_confidence") @db.Decimal(5, 3)
+  expectedCrop    String?   @map("expected_crop") @db.VarChar(255)
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  farm Farm? @relation(fields: [farmId], references: [id], onDelete: SetNull)
+
+  @@map("scan_history")
 }

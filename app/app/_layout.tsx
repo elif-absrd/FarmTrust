@@ -9,6 +9,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 
+import { registerForPushNotifications } from '../services/notification.service';
+
+// Inside your root component:
+useEffect(() => {
+  registerForPushNotifications();
+}, []);
+
 export {
   // Catch any errors thrown by the Layout component.
   ErrorBoundary,

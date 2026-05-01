@@ -6,6 +6,8 @@ const statusStyles: Record<string, { backgroundColor: string; color: string }> =
   'Oracle Verifying': { backgroundColor: '#fef3c7', color: '#92400e' },
   'Smart Contract Triggered': { backgroundColor: '#dbeafe', color: '#1e40af' },
   'Payout Complete': { backgroundColor: '#dcfce7', color: '#166534' },
+  'Survey Pending': { backgroundColor: '#ede9fe', color: '#5b21b6' },
+  'Rejected': { backgroundColor: '#fee2e2', color: '#991b1b' },
   'Active': { backgroundColor: '#dcfce7', color: '#166534' },
   'Expired': { backgroundColor: '#e0e0e0', color: '#666' },
 };

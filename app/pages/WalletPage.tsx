@@ -1,30 +1,64 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { PageWrapper } from '../components/PageWrapper';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Wallet, Copy, ArrowDownLeft, ArrowUpRight, Zap } from 'lucide-react-native';
+import { Wallet, Copy, ArrowDownLeft } from 'lucide-react-native';
+import { apiRequest } from '@/utils/api';
+import { useAuth } from '@/context/AuthContext';
 
-const transactions = [
-  { type: 'in', label: 'Payout — Rice Blast Claim', amount: '+₹8,500', date: 'Feb 28' },
-  { type: 'out', label: 'Policy Purchase — Wheat', amount: '-₹1,200', date: 'Feb 25' },
-  { type: 'in', label: 'Payout — Leaf Blight Claim', amount: '+₹3,500', date: 'Feb 20' },
-  { type: 'out', label: 'Policy Purchase — Cotton', amount: '-₹950', date: 'Feb 15' },
-  { type: 'in', label: 'Government Subsidy', amount: '+₹2,000', date: 'Feb 10' },
-];
+interface WalletTransaction {
+  id: number;
+  label: string;
+  amount: number;
+  date: string;
+  txHash?: string | null;
+}
+
+interface WalletSummaryResponse {
+  account: {
+    name?: string | null;
+    walletAddress?: string | null;
+    accountNumber?: string | null;
+    accountName?: string | null;
+    bankName?: string | null;
+  };
+  balance: number;
+  transactions: WalletTransaction[];
+}
+
+function formatCurrency(amount?: number | null) {
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return '₹0';
+  return `₹${value.toLocaleString()}`;
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString();
+}
 
 export default function WalletPage() {
-  const [balance, setBalance] = useState(12450);
-  const [animating, setAnimating] = useState(false);
+  const { token } = useAuth();
+  const [summary, setSummary] = useState<WalletSummaryResponse | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const simulatePayout = () => {
-    setAnimating(true);
-    setTimeout(() => {
-      setBalance((b) => b + 5000);
-      setAnimating(false);
-      Alert.alert('Payout Received! 🎉', '₹5,000 MockINR has been credited to your wallet.');
-    }, 2000);
-  };
+  useEffect(() => {
+    if (!token) return;
+    setLoading(true);
+    (async () => {
+      try {
+        const response = await apiRequest<WalletSummaryResponse>('/api/wallet', { method: 'GET' }, token);
+        setSummary(response);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to load wallet';
+        Alert.alert('Wallet unavailable', message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [token]);
 
   const copyAddress = () => {
     Alert.alert('Copied!', 'Wallet address copied to clipboard.');
@@ -34,73 +68,80 @@ export default function WalletPage() {
     <PageWrapper>
       <Text style={styles.title}>Blockchain Wallet</Text>
 
-      {/* Balance Card */}
-      <Card style={styles.balanceCard}>
-        <CardContent style={styles.balanceContent}>
-          <View style={styles.balanceHeader}>
-            <Wallet color="white" size={20} />
-            <Text style={styles.balanceLabel}>MockINR Balance</Text>
-          </View>
-          <Text style={[styles.balanceAmount, animating && styles.balanceAnimating]}>
-            ₹{balance.toLocaleString()}
-          </Text>
-          <View style={styles.addressContainer}>
-            <Text style={styles.address}>0x1a2b...1234</Text>
-            <TouchableOpacity onPress={copyAddress} activeOpacity={0.7}>
-              <Copy color="rgba(255, 255, 255, 0.7)" size={16} />
-            </TouchableOpacity>
-          </View>
-        </CardContent>
-      </Card>
-
-      {/* <Button
-        onPress={simulatePayout}
-        disabled={animating}
-        style={styles.payoutButton}
-      >
-        <View style={styles.buttonContent}>
-          {animating ? (
-            <View style={styles.spinner} />
-          ) : (
-            <Zap color="white" size={16} />
-          )}
-          <Text style={styles.buttonText}>
-            {animating ? 'Processing...' : 'Simulate Payout'}
-          </Text>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1a73e8" />
+          <Text style={styles.loadingText}>Loading wallet...</Text>
         </View>
-      </Button> */}
-
-      {/* Transaction History */}
-      <Card style={styles.historyCard}>
-        <CardHeader>
-          <CardTitle>
-            <Text style={styles.historyTitle}>Transaction History</Text>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {transactions.map((tx, i) => (
-            <View key={i} style={styles.txItem}>
-              <View style={styles.txLeft}>
-                {tx.type === 'in' ? (
-                  <ArrowDownLeft color="#22c55e" size={16} />
-                ) : (
-                  <ArrowUpRight color="#f59e0b" size={16} />
-                )}
-                <View>
-                  <Text style={styles.txLabel}>{tx.label}</Text>
-                  <Text style={styles.txDate}>{tx.date}</Text>
-                </View>
+      ) : (
+        <>
+          <Card style={styles.balanceCard}>
+            <CardContent style={styles.balanceContent}>
+              <View style={styles.balanceHeader}>
+                <Wallet color="white" size={20} />
+                <Text style={styles.balanceLabel}>MockINR Balance</Text>
               </View>
-              <Text style={[
-                styles.txAmount,
-                tx.type === 'in' ? styles.txIn : styles.txOut
-              ]}>
-                {tx.amount}
-              </Text>
-            </View>
-          ))}
-        </CardContent>
-      </Card>
+              <Text style={styles.balanceAmount}>{formatCurrency(summary?.balance || 0)}</Text>
+              <View style={styles.addressContainer}>
+                <Text style={styles.address}>{summary?.account.walletAddress || 'Wallet not set'}</Text>
+                <TouchableOpacity onPress={copyAddress} activeOpacity={0.7}>
+                  <Copy color="rgba(255, 255, 255, 0.7)" size={16} />
+                </TouchableOpacity>
+              </View>
+            </CardContent>
+          </Card>
+
+          <Card style={styles.accountCard}>
+            <CardHeader>
+              <CardTitle>
+                <Text style={styles.accountTitle}>Account Details</Text>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <View style={styles.accountRow}>
+                <Text style={styles.accountLabel}>Account Name</Text>
+                <Text style={styles.accountValue}>{summary?.account.accountName || summary?.account.name || '--'}</Text>
+              </View>
+              <View style={styles.accountRow}>
+                <Text style={styles.accountLabel}>Account Number</Text>
+                <Text style={styles.accountValue}>{summary?.account.accountNumber || '--'}</Text>
+              </View>
+              <View style={styles.accountRow}>
+                <Text style={styles.accountLabel}>Bank</Text>
+                <Text style={styles.accountValue}>{summary?.account.bankName || '--'}</Text>
+              </View>
+            </CardContent>
+          </Card>
+
+          <Card style={styles.historyCard}>
+            <CardHeader>
+              <CardTitle>
+                <Text style={styles.historyTitle}>Transaction History</Text>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {summary?.transactions?.length ? (
+                summary.transactions.map((tx) => (
+                  <View key={tx.id} style={styles.txItem}>
+                    <View style={styles.txLeft}>
+                      <ArrowDownLeft color="#22c55e" size={16} />
+                      <View>
+                        <Text style={styles.txLabel}>{tx.label}</Text>
+                        <Text style={styles.txDate}>{formatDate(tx.date)}</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.txAmount, styles.txIn]}>
+                      +{formatCurrency(tx.amount)}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.emptyText}>No payouts yet.</Text>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </PageWrapper>
   );
 }
@@ -110,6 +151,15 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 24,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: '#666',
   },
   balanceCard: {
     marginBottom: 24,
@@ -137,9 +187,6 @@ const styles = StyleSheet.create({
     color: 'white',
     marginBottom: 16,
   },
-  balanceAnimating: {
-    transform: [{ scale: 1.1 }],
-  },
   addressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -154,31 +201,27 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 4,
   },
-  payoutButton: {
+  accountCard: {
     marginBottom: 24,
-    backgroundColor: '#8b5cf6',
   },
-  buttonContent: {
+  accountTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  accountRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    paddingVertical: 6,
   },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
+  accountLabel: {
+    fontSize: 12,
+    color: '#666',
+  },
+  accountValue: {
+    fontSize: 12,
     fontWeight: '600',
   },
-  spinner: {
-    width: 16,
-    height: 16,
-    borderWidth: 2,
-    borderColor: 'white',
-    borderTopColor: 'transparent',
-    borderRadius: 8,
-  },
-  historyCard: {
-    // Card styles
-  },
+  historyCard: {},
   historyTitle: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -214,7 +257,9 @@ const styles = StyleSheet.create({
   txIn: {
     color: '#22c55e',
   },
-  txOut: {
-    color: '#f59e0b',
+  emptyText: {
+    fontSize: 12,
+    color: '#666',
+    paddingVertical: 12,
   },
 });
