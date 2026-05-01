@@ -8,10 +8,31 @@ const router = express.Router();
 // Register user
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, farmerName, phone, walletAddress, region } = req.body;
+    // Accept multiple common field names from different clients
+    const {
+      email,
+      password,
+      farmerName,
+      farmer_name,
+      name,
+      phone,
+      phoneNumber,
+      walletAddress,
+      wallet_address,
+      region,
+    } = req.body;
 
-    if (!email || !password || !farmerName) {
-      return res.status(400).json({ error: 'Email, password, and farmer name are required' });
+    const finalFarmerName = farmerName || farmer_name || name;
+    const finalPhone = phone || phoneNumber || null;
+    const finalWallet = walletAddress || wallet_address || null;
+
+    const missing = [];
+    if (!email) missing.push('email');
+    if (!password) missing.push('password');
+    if (!finalFarmerName) missing.push('farmerName');
+
+    if (missing.length) {
+      return res.status(400).json({ error: 'Missing required fields', missing });
     }
 
     // Check if user already exists
@@ -31,9 +52,9 @@ router.post('/register', async (req, res) => {
       data: {
         email,
         passwordHash: hashedPassword,
-        farmerName,
-        phone: phone || null,
-        walletAddress: walletAddress || null,
+        farmerName: finalFarmerName,
+        phone: finalPhone,
+        walletAddress: finalWallet,
         region: region || null,
         role: 'FARMER',
         subscriptionPlan: 'FREE',

@@ -68,6 +68,9 @@ export default function OrchardRegistration() {
   const [landmark, setLandmark] = useState('');
   const [areaAcres, setAreaAcres] = useState('');
   const [numberOfTrees, setNumberOfTrees] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [bankName, setBankName] = useState('');
   const [gpsPolygon, setGpsPolygon] = useState<any | null>(null);
   const [capturingLocation, setCapturingLocation] = useState(false);
   const [selectedTreeTypes, setSelectedTreeTypes] = useState<string[]>([]);
@@ -124,9 +127,13 @@ export default function OrchardRegistration() {
   const captureOrchardPerimeter = async () => {
     try {
       setCapturingLocation(true);
+
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission required', 'Location permission is needed to capture orchard perimeter.');
+        Alert.alert(
+          'Permission required',
+          'Location permission is needed to capture orchard perimeter.',
+        );
         return;
       }
 
@@ -136,7 +143,78 @@ export default function OrchardRegistration() {
 
       const polygon = buildPerimeterPolygon(location.coords.latitude, location.coords.longitude);
       setGpsPolygon(polygon);
-      Alert.alert('Perimeter captured', 'Orchard GPS polygon was captured from your location.');
+      Alert.alert('Perimeter captured', 'Orchard GPS polygon was captured from your current location.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to capture location';
+      Alert.alert('Location capture failed', message);
+    } finally {
+      setCapturingLocation(false);
+    }
+  };
+
+  const captureOrchardPerimeterFromAddress = async () => {
+    try {
+      setCapturingLocation(true);
+
+      const fullAddress = `${addressLine1} ${city} ${district} ${state} ${pincode}`.trim();
+
+      if (!fullAddress || !areaAcres.trim()) {
+        Alert.alert(
+          'Missing information',
+          'Please enter address and area in acres to capture perimeter.',
+        );
+        return;
+      }
+
+      try {
+        const response = await apiRequest<{ polygon: { coordinates: number[][][] }; formattedAddress?: string }>(
+          '/api/farms/geocode-address',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              address: fullAddress,
+              areaAcres: parseFloat(areaAcres),
+            }),
+          },
+          token,
+        );
+
+        const polygon = {
+          type: 'Polygon',
+          coordinates: [response.polygon.coordinates[0]],
+        };
+
+        setGpsPolygon(polygon);
+        Alert.alert(
+          'Perimeter captured',
+          `Orchard GPS polygon was calculated from address: ${response.formattedAddress ?? fullAddress}`,
+        );
+      } catch (geocodeError) {
+        console.warn('Geocoding failed, falling back to current location', geocodeError);
+
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permission required',
+            'Location permission is needed to capture orchard perimeter.',
+          );
+          return;
+        }
+
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+
+        const polygon = buildPerimeterPolygon(
+          location.coords.latitude,
+          location.coords.longitude,
+        );
+        setGpsPolygon(polygon);
+        Alert.alert(
+          'Perimeter captured',
+          'Orchard GPS polygon was captured from your current location (geocoding not available).',
+        );
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to capture location';
       Alert.alert('Location capture failed', message);
@@ -154,11 +232,14 @@ export default function OrchardRegistration() {
       !state.trim() ||
       !pincode.trim() ||
       !numberOfTrees.trim() ||
+      !accountNumber.trim() ||
+      !accountName.trim() ||
+      !bankName.trim() ||
       !gpsPolygon
     ) {
       Alert.alert(
         'Required fields missing',
-        'Orchard name, orchard type, address, district, state, pincode, tree count, and perimeter are required.',
+        'Orchard name, orchard type, address, district, state, pincode, tree count, banking details, and perimeter are required.',
       );
       return;
     }
@@ -180,6 +261,9 @@ export default function OrchardRegistration() {
       formData.append('landmark', landmark.trim());
       formData.append('areaAcres', areaAcres.trim());
       formData.append('numberOfTrees', numberOfTrees.trim());
+      formData.append('accountNumber', accountNumber.trim());
+      formData.append('accountName', accountName.trim());
+      formData.append('bankName', bankName.trim());
       formData.append('treeTypes', JSON.stringify(selectedTreeTypes));
       formData.append('gpsPolygon', JSON.stringify(gpsPolygon));
 
@@ -287,9 +371,42 @@ export default function OrchardRegistration() {
               onChangeText={setNumberOfTrees}
               keyboardType="numeric"
             />
+            <Text style={styles.sectionLabel}>Bank account details</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Account number"
+              value={accountNumber}
+              onChangeText={setAccountNumber}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Account name"
+              value={accountName}
+              onChangeText={setAccountName}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Bank name"
+              value={bankName}
+              onChangeText={setBankName}
+            />
 
             <View>
-              <Text style={styles.sectionLabel}>Tree types</Text>
+              <Text style={styles.sectionLabel}>Orchard perimeter from address</Text>
+              <Button onPress={captureOrchardPerimeterFromAddress} disabled={saving || capturingLocation}>
+                <Text style={styles.btnText}>
+                  {capturingLocation ? 'Capturing...' : 'Capture perimeter from address'}
+                </Text>
+              </Button>
+              <Text style={styles.helperText}>
+                {gpsPolygon
+                  ? 'Perimeter captured successfully based on address and acreage.'
+                  : 'Enter address and area in acres, then click to automatically calculate perimeter.'}
+              </Text>
+            </View>
+
+            <View>
+              <Text style={styles.sectionLabel}>Select tree types</Text>
               <Text style={styles.helperText}>{treeSummary}</Text>
               <View style={styles.treeGrid}>
                 {treeOptions.map((treeType) => {

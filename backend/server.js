@@ -9,8 +9,13 @@ const { startNdviSyncScheduler } = require('./services/ndviSync');
 const authRoutes = require('./routes/auth');
 const farmsRoutes = require('./routes/farms');
 const claimsRoutes = require('./routes/claims');
+const claimRoutes = require('./routes/claim.routes');
+const adminRoutes = require('./routes/admin.routes');
 const mlRoutes = require('./routes/ml');
 const riskRoutes = require('./riskScoringEngine/routes');
+const blockchainRoutes = require('./routes/blockchain.routes');
+const walletRoutes = require('./routes/wallet.routes');
+const providerRoutes = require('./routes/provider.routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -52,8 +57,13 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/farms', farmsRoutes);
 app.use('/api/claims', claimsRoutes);
+app.use('/api/claim', claimRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/ml', mlRoutes);
 app.use('/api/risk', riskRoutes);
+app.use('/api/blockchain', blockchainRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/provider', providerRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

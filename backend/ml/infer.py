@@ -16,11 +16,12 @@ import tensorflow as tf
 # ============================================================================
 # Configuration
 # ============================================================================
-IMAGE_SIZE = 224
+IMAGE_SIZE = 160  # MUST match actual model file dimensions (still 160x160)
 CONFIDENCE_THRESHOLD = 0.35  # Balance strictness with typical multi-class scores
 TOP_K_RESULTS = 5
-MIN_GREEN_RATIO = 0.15  # At least 15% green (plants are green)
-MIN_SATURATION = 0.15   # Some color saturation (not grayscale)
+MIN_GREEN_RATIO = 0.10  # At least 10% green (some crops/lighting reduce green ratio)
+MIN_SATURATION = 0.08   # Some color saturation but keep lenient for varied lighting
+MIN_EDGE_DENSITY = 0.02  # Minimal texture requirement (smooth leaves are still valid plants)
 
 
 # ============================================================================
@@ -66,7 +67,7 @@ def validate_image_quality(image_path):
         saturation = np.where(max_rgb > 0, (max_rgb - min_rgb) / max_rgb, 0)
         mean_saturation = np.mean(saturation)
         
-        # Calculate uniformity (how uniform is the color)
+        # Calculate color variation (how uniform is the color)
         # If image is very uniform (like a solid background), it's likely not a plant
         std_r = np.std(r)
         std_g = np.std(g)
@@ -78,6 +79,20 @@ def validate_image_quality(image_path):
         edges_x = np.abs(gray[:, 1:] - gray[:, :-1])
         edges_y = np.abs(gray[1:, :] - gray[:-1, :])
         edge_density = (np.mean(edges_x > 0.1) + np.mean(edges_y > 0.1)) / 2
+        
+        # Check for local texture variance (macro leaf images should have fine texture throughout)
+        # Satellite images have large uniform blocks (sky, water, fields)
+        # Divide image into 4x4 blocks and check texture in each
+        block_size = img_array.shape[0] // 4
+        block_variances = []
+        for i in range(4):
+            for j in range(4):
+                block = gray[i*block_size:(i+1)*block_size, j*block_size:(j+1)*block_size]
+                block_variances.append(np.var(block))
+        
+        local_texture_variance = np.mean(block_variances)
+        # Leaf images have consistent local texture; satellite has some blocks with 0 variance (uniform regions)
+        min_block_variance = np.min(block_variances)
         
         print(f"DEBUG QUALITY: green_dominance={green_dominance:.2%}, saturation={mean_saturation:.2%}, edge_density={edge_density:.2%}, color_variation={avg_std:.3f}", file=sys.stderr)
         
@@ -93,8 +108,8 @@ def validate_image_quality(image_path):
         if avg_std < 0.05:
             quality_issues.append("Image is too uniform (solid color)")
         
-        if edge_density < 0.05:
-            quality_issues.append("Not enough edges/texture (not a plant)")
+        if edge_density < MIN_EDGE_DENSITY:
+            quality_issues.append(f"Not enough edges/texture ({edge_density:.1%}, need {MIN_EDGE_DENSITY:.1%})")
         
         if quality_issues:
             print(f"DEBUG QUALITY ISSUES: {'; '.join(quality_issues)}", file=sys.stderr)

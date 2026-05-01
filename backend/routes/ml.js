@@ -7,6 +7,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const { authenticateToken } = require('../middleware/auth');
+const prisma = require('../config/prisma');
 
 const router = express.Router();
 const execFileAsync = promisify(execFile);
@@ -14,6 +15,29 @@ const labelsPath = path.resolve(__dirname, '..', 'ml', 'labels.json');
 
 const uploadDir = path.join(__dirname, '..', 'uploads', 'scan-images');
 fs.mkdirSync(uploadDir, { recursive: true });
+
+function resolvePythonBin() {
+  const candidates = [
+    process.env.PYTHON_BIN,
+    path.resolve(__dirname, '..', '..', 'venv', 'Scripts', 'python.exe'),
+    path.resolve(__dirname, '..', '..', 'venv', 'bin', 'python'),
+    'python',
+    'python3',
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const looksLikePath = candidate.includes('\\') || candidate.includes('/');
+    if (looksLikePath) {
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+      continue;
+    }
+    return candidate;
+  }
+
+  return 'python';
+}
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
@@ -60,7 +84,7 @@ async function loadSupportedCrops() {
 }
 
 async function runModelInference(imagePath, expectedCrop) {
-  const pythonBin = process.env.PYTHON_BIN || 'python';
+  const pythonBin = resolvePythonBin();
   const scriptPath = path.join(__dirname, '..', 'ml', 'infer.py');
   const modelPath = path.resolve(__dirname, '..', 'ml', 'disease_detection.tflite');
   const metadataPath = path.resolve(__dirname, '..', 'ml', 'model_metadata.json');
@@ -196,6 +220,21 @@ router.post('/predict', authenticateToken, upload.single('image'), async (req, r
   try {
     const expectedCropRaw = typeof req.body?.expectedCrop === 'string' ? req.body.expectedCrop : '';
     const expectedCrop = expectedCropRaw.trim().slice(0, 100);
+    const farmIdRaw = typeof req.body?.farmId === 'string' ? req.body.farmId : null;
+    let resolvedFarmId = null;
+    if (farmIdRaw) {
+      const farmId = Number(farmIdRaw);
+      if (Number.isFinite(farmId)) {
+        const farm = await prisma.farm.findFirst({
+          where: {
+            id: farmId,
+            ownerId: req.user.userId,
+          },
+          select: { id: true },
+        });
+        resolvedFarmId = farm?.id || null;
+      }
+    }
     const fileBuffer = await fs.promises.readFile(uploadedPath);
     const imageHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
@@ -249,6 +288,22 @@ router.post('/predict', authenticateToken, upload.single('image'), async (req, r
     console.log(
       `[ML] [${requestId}] debug tensor=${JSON.stringify(tensorDebug || {})} rawOutput=${JSON.stringify(rawDebug || {})} top=${JSON.stringify(topDebug.slice(0, 5))}`,
     );
+
+    const severityValue = Number(prediction?.diseaseSeverity);
+    const confidenceValue = Number(prediction?.modelConfidence);
+
+    await prisma.scanHistory.create({
+      data: {
+        userId: req.user.userId,
+        farmId: resolvedFarmId,
+        imageHash,
+        predictedClass: prediction?.predictedClass || null,
+        diseaseType: prediction?.diseaseType || null,
+        diseaseSeverity: Number.isFinite(severityValue) ? severityValue : null,
+        modelConfidence: Number.isFinite(confidenceValue) ? confidenceValue : null,
+        expectedCrop: expectedCrop || null,
+      },
+    });
     
     if (!isPlantDetected) {
       console.warn(
@@ -278,6 +333,53 @@ router.post('/predict', authenticateToken, upload.single('image'), async (req, r
     res.status(500).json({ error: message });
   } finally {
     await fs.promises.unlink(uploadedPath).catch(() => null);
+  }
+});
+
+router.get('/history', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
+
+    const scans = await prisma.scanHistory.findMany({
+      where: { userId },
+      include: {
+        farm: {
+          select: {
+            id: true,
+            farmName: true,
+            cropType: true,
+            orchardType: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    res.json({
+      scans: scans.map((scan) => ({
+        id: scan.id,
+        imageHash: scan.imageHash,
+        predictedClass: scan.predictedClass,
+        diseaseType: scan.diseaseType,
+        diseaseSeverity: scan.diseaseSeverity,
+        modelConfidence: scan.modelConfidence,
+        expectedCrop: scan.expectedCrop,
+        createdAt: scan.createdAt,
+        farm: scan.farm
+          ? {
+              id: scan.farm.id,
+              farmName: scan.farm.farmName,
+              cropType: scan.farm.cropType,
+              orchardType: scan.farm.orchardType,
+            }
+          : null,
+      })),
+    });
+  } catch (error) {
+    console.error('Scan history error:', error);
+    res.status(500).json({ error: 'Failed to fetch scan history' });
   }
 });
 

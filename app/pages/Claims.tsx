@@ -1,70 +1,204 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { PageWrapper } from '../components/PageWrapper';
 import { StatusChip } from '../components/StatusChip';
 import { SeverityBadge } from '../components/SeverityBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
-import { FileText, Link as LinkIcon } from 'lucide-react-native';
+import { FileText, Link as LinkIcon, X } from 'lucide-react-native';
+import { useAuth } from '@/context/AuthContext';
+import { apiRequest } from '@/utils/api';
 
-const claims = [
-  { id: 'CLM-001', crop: 'Rice', disease: 'Rice Blast', date: '2026-02-28', severity: 'High' as const, amount: '₹8,500', status: 'Payout Complete' },
-  { id: 'CLM-002', crop: 'Wheat', disease: 'Leaf Rust', date: '2026-03-01', severity: 'Medium' as const, amount: '₹4,200', status: 'Smart Contract Triggered' },
-  { id: 'CLM-003', crop: 'Cotton', disease: 'Boll Rot', date: '2026-03-03', severity: 'High' as const, amount: '₹6,800', status: 'Oracle Verifying' },
-  { id: 'CLM-004', crop: 'Rice', disease: 'Sheath Blight', date: '2026-03-04', severity: 'Medium' as const, amount: '₹3,100', status: 'Pending' },
-];
+interface Claim {
+  id: number;
+  farmId: number;
+  diseaseType?: string | null;
+  diseaseSeverity?: number | null;
+  createdAt: string;
+  updatedAt?: string;
+  status: string;
+  txHash?: string | null;
+  farm?: {
+    farmName?: string | null;
+    cropType?: string | null;
+    orchardType?: string | null;
+  };
+  policy?: {
+    coverageAmount?: number | string | null;
+  };
+}
 
-const txFeed = [
-  { hash: '0xa3f2...8c1d', time: '2 min ago', status: 'Confirmed' },
-  { hash: '0xb7e1...4f2a', time: '5 min ago', status: 'Confirmed' },
-  { hash: '0xc9d4...1e3b', time: '12 min ago', status: 'Pending' },
-];
+interface ClaimsResponse {
+  claims: Claim[];
+}
 
-const auditTrail = [
-  { step: 'Claim Filed', time: '2026-02-28 10:30', detail: 'Farmer submitted via mobile app' },
-  { step: 'AI Analysis', time: '2026-02-28 10:31', detail: 'Rice Blast detected, 94.6% confidence' },
-  { step: 'Oracle Verification', time: '2026-02-28 11:15', detail: '3/5 oracle nodes confirmed' },
-  { step: 'Smart Contract Triggered', time: '2026-02-28 11:16', detail: 'PolicyID: 0x8f2a...3c1d' },
-  { step: 'Payout Complete', time: '2026-02-28 11:20', detail: '₹8,500 MockINR transferred' },
-];
+interface AuditTrailEntry {
+  step: string;
+  time: string;
+  detail?: string | null;
+}
+
+interface AuditTrailResponse {
+  claimId: number;
+  status: string;
+  auditTrail: AuditTrailEntry[];
+}
+
+interface ScanHistoryEntry {
+  id: number;
+  predictedClass?: string | null;
+  diseaseType?: string | null;
+  diseaseSeverity?: number | null;
+  modelConfidence?: number | null;
+  expectedCrop?: string | null;
+  createdAt: string;
+  farm?: {
+    id: number;
+    farmName?: string | null;
+  } | null;
+}
+
+interface ScanHistoryResponse {
+  scans: ScanHistoryEntry[];
+}
+
+function severityFromScore(score?: number | null): 'Low' | 'Medium' | 'High' {
+  if (!score || score <= 0) return 'Low';
+  if (score >= 0.7) return 'High';
+  if (score >= 0.35) return 'Medium';
+  return 'Low';
+}
+
+function statusLabel(status: string) {
+  switch (status) {
+    case 'PAID':
+      return 'Payout Complete';
+    case 'APPROVED':
+      return 'Smart Contract Triggered';
+    case 'UNDER_REVIEW':
+      return 'Oracle Verifying';
+    case 'REJECTED':
+      return 'Rejected';
+    case 'SURVEYED_PENDING':
+      return 'Survey Pending';
+    default:
+      return 'Pending';
+  }
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+function formatCurrency(value?: number | string | null) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return '₹0';
+  return `₹${amount.toLocaleString()}`;
+}
 
 export default function ClaimsPage() {
-  const [selectedClaim, setSelectedClaim] = useState<typeof claims[0] | null>(null);
+  const { token } = useAuth();
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
+  const [auditTrail, setAuditTrail] = useState<AuditTrailEntry[]>([]);
+  const [scanHistory, setScanHistory] = useState<ScanHistoryEntry[]>([]);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    setLoading(true);
+    (async () => {
+      try {
+        const response = await apiRequest<ClaimsResponse>('/api/claims', { method: 'GET' }, token);
+        setClaims(response.claims || []);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to load claims';
+        Alert.alert('Claims unavailable', message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [token]);
+
+  const txFeed = useMemo(() => {
+    return claims
+      .filter((claim) => !!claim.txHash)
+      .slice(0, 5)
+      .map((claim) => ({
+        hash: claim.txHash || '--',
+        time: formatDate(claim.updatedAt || claim.createdAt),
+        status: claim.status === 'PAID' ? 'Confirmed' : 'Pending',
+      }));
+  }, [claims]);
+
+  const openClaim = async (claim: Claim) => {
+    if (!token) return;
+    setSelectedClaim(claim);
+    setAuditTrail([]);
+    setScanHistory([]);
+    setDetailsLoading(true);
+    try {
+      const [auditResponse, scanResponse] = await Promise.all([
+        apiRequest<AuditTrailResponse>(`/api/claims/${claim.id}/audit-trail`, { method: 'GET' }, token),
+        apiRequest<ScanHistoryResponse>('/api/ml/history?limit=15', { method: 'GET' }, token),
+      ]);
+      setAuditTrail(auditResponse.auditTrail || []);
+      setScanHistory(scanResponse.scans || []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load claim details';
+      Alert.alert('Claim details unavailable', message);
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
 
   return (
     <PageWrapper>
       <Text style={styles.title}>Insurance Claims</Text>
 
       <View style={styles.mainContent}>
-        {/* Claims List */}
-        <View style={styles.claimsList}>
-          {claims.map((c) => (
-            <TouchableOpacity
-              key={c.id}
-              onPress={() => setSelectedClaim(c)}
-              activeOpacity={0.7}
-            >
-              <Card style={styles.claimCard}>
-                <CardContent style={styles.claimContent}>
-                  <View style={styles.claimLeft}>
-                    <FileText color="#666" size={20} />
-                    <View style={styles.claimInfo}>
-                      <Text style={styles.claimTitle}>{c.crop} — {c.disease}</Text>
-                      <Text style={styles.claimMeta}>{c.id} · {c.date}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.claimRight}>
-                    <SeverityBadge level={c.severity} />
-                    <StatusChip status={c.status} />
-                    <Text style={styles.claimAmount}>{c.amount}</Text>
-                  </View>
-                </CardContent>
-              </Card>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#1a73e8" />
+            <Text style={styles.loadingText}>Loading claims...</Text>
+          </View>
+        ) : (
+          <View style={styles.claimsList}>
+            {claims.map((claim) => {
+              const cropLabel =
+                claim.farm?.cropType || claim.farm?.orchardType || claim.farm?.farmName || 'Unknown crop';
+              const severity = severityFromScore(Number(claim.diseaseSeverity));
+              return (
+                <TouchableOpacity key={claim.id} onPress={() => openClaim(claim)} activeOpacity={0.7}>
+                  <Card style={styles.claimCard}>
+                    <CardContent style={styles.claimContent}>
+                      <View style={styles.claimLeft}>
+                        <FileText color="#666" size={20} />
+                        <View style={styles.claimInfo}>
+                          <Text style={styles.claimTitle}>{cropLabel} — {claim.diseaseType || 'Unknown'}</Text>
+                          <Text style={styles.claimMeta}>CLM-{String(claim.id).padStart(6, '0')} · {formatDate(claim.createdAt)}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.claimRight}>
+                        <SeverityBadge level={severity} />
+                        <StatusChip status={statusLabel(claim.status)} />
+                        <Text style={styles.claimAmount}>{formatCurrency(claim.policy?.coverageAmount)}</Text>
+                      </View>
+                    </CardContent>
+                  </Card>
+                </TouchableOpacity>
+              );
+            })}
+            {!claims.length && (
+              <Text style={styles.emptyText}>No claims found yet.</Text>
+            )}
+          </View>
+        )}
 
-        {/* Blockchain TX Feed */}
         <Card style={styles.txFeedCard}>
           <CardHeader>
             <CardTitle>
@@ -75,45 +209,93 @@ export default function ClaimsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {txFeed.map((tx, i) => (
-              <View key={i} style={styles.txItem}>
-                <Text style={styles.txHash}>{tx.hash}</Text>
-                <View style={styles.txMeta}>
-                  <Text style={styles.txTime}>{tx.time}</Text>
-                  <Text style={[
-                    styles.txStatus,
-                    tx.status === 'Confirmed' ? styles.txConfirmed : styles.txPending
-                  ]}>
-                    {tx.status}
-                  </Text>
+            {txFeed.length ? (
+              txFeed.map((tx, i) => (
+                <View key={`${tx.hash}-${i}`} style={styles.txItem}>
+                  <Text style={styles.txHash}>{tx.hash}</Text>
+                  <View style={styles.txMeta}>
+                    <Text style={styles.txTime}>{tx.time}</Text>
+                    <Text style={[
+                      styles.txStatus,
+                      tx.status === 'Confirmed' ? styles.txConfirmed : styles.txPending,
+                    ]}>
+                      {tx.status}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ))}
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No transactions yet.</Text>
+            )}
           </CardContent>
         </Card>
       </View>
 
-      {/* Detail Modal */}
       <Dialog open={!!selectedClaim} onOpenChange={() => setSelectedClaim(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Claim {selectedClaim?.id} — Audit Trail</DialogTitle>
+            <View style={styles.dialogHeaderRow}>
+              <DialogTitle>
+                Claim {selectedClaim ? `CLM-${String(selectedClaim.id).padStart(6, '0')}` : ''} — Audit Trail
+              </DialogTitle>
+              <TouchableOpacity onPress={() => setSelectedClaim(null)} style={styles.closeButton}>
+                <X size={18} color="#666" />
+              </TouchableOpacity>
+            </View>
           </DialogHeader>
-          <View style={styles.auditTrail}>
-            {auditTrail.map((a, i) => (
-              <View key={i} style={styles.auditItem}>
-                <View style={styles.auditTimeline}>
-                  <View style={styles.auditDot} />
-                  {i < auditTrail.length - 1 && <View style={styles.auditLine} />}
-                </View>
-                <View style={styles.auditContent}>
-                  <Text style={styles.auditStep}>{a.step}</Text>
-                  <Text style={styles.auditTime}>{a.time}</Text>
-                  <Text style={styles.auditDetail}>{a.detail}</Text>
-                </View>
+
+          {detailsLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#1a73e8" />
+              <Text style={styles.loadingText}>Loading audit trail...</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.auditTrail}>
+                {auditTrail.length ? (
+                  auditTrail.map((a, i) => (
+                    <View key={`${a.step}-${i}`} style={styles.auditItem}>
+                      <View style={styles.auditTimeline}>
+                        <View style={styles.auditDot} />
+                        {i < auditTrail.length - 1 && <View style={styles.auditLine} />}
+                      </View>
+                      <View style={styles.auditContent}>
+                        <Text style={styles.auditStep}>{a.step}</Text>
+                        <Text style={styles.auditTime}>{formatDate(a.time)}</Text>
+                        {!!a.detail && <Text style={styles.auditDetail}>{a.detail}</Text>}
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.emptyText}>No audit events available.</Text>
+                )}
               </View>
-            ))}
-          </View>
+
+              <View style={styles.scanHistory}>
+                <Text style={styles.sectionTitle}>Recent Scan History</Text>
+                {scanHistory.length ? (
+                  scanHistory.map((scan) => (
+                    <View key={scan.id} style={styles.scanItem}>
+                      <View>
+                        <Text style={styles.scanTitle}>{scan.predictedClass || scan.diseaseType || 'Unknown scan'}</Text>
+                        <Text style={styles.scanMeta}>
+                          {formatDate(scan.createdAt)} · {scan.farm?.farmName || 'Unassigned farm'}
+                        </Text>
+                      </View>
+                      <View style={styles.scanRight}>
+                        <SeverityBadge level={severityFromScore(scan.diseaseSeverity)} />
+                        <Text style={styles.scanConfidence}>
+                          {scan.modelConfidence ? `${(Number(scan.modelConfidence) * 100).toFixed(1)}%` : '--'}
+                        </Text>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.emptyText}>No scans logged yet.</Text>
+                )}
+              </View>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </PageWrapper>
@@ -129,12 +311,24 @@ const styles = StyleSheet.create({
   mainContent: {
     gap: 24,
   },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: '#666',
+  },
   claimsList: {
     gap: 12,
   },
-  claimCard: {
-    // Card styles
+  emptyText: {
+    fontSize: 12,
+    color: '#666',
+    paddingVertical: 12,
   },
+  claimCard: {},
   claimContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -216,6 +410,14 @@ const styles = StyleSheet.create({
   txPending: {
     color: '#f59e0b',
   },
+  dialogHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  closeButton: {
+    padding: 4,
+  },
   auditTrail: {
     marginTop: 8,
   },
@@ -255,6 +457,38 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   auditDetail: {
+    fontSize: 12,
+    color: '#666',
+  },
+  scanHistory: {
+    marginTop: 16,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  scanItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  scanTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  scanMeta: {
+    fontSize: 11,
+    color: '#666',
+  },
+  scanRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  scanConfidence: {
     fontSize: 12,
     color: '#666',
   },

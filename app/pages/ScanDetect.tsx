@@ -358,6 +358,9 @@ export default function ScanDetect() {
       };
 
       const formData = new FormData();
+      if (selectedFarmId) {
+        formData.append('farmId', String(selectedFarmId));
+      }
       if (selectedExpectedCrop) {
         formData.append('expectedCrop', selectedExpectedCrop);
       }

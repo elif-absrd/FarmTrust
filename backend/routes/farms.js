@@ -7,6 +7,7 @@ const { Prisma } = require('@prisma/client');
 const prisma = require('../config/prisma');
 const { authenticateToken } = require('../middleware/auth');
 const { assignFarmIdentityOnPolygon } = require('../services/chainIdentity');
+const { geocodeAddressToPolygon } = require('../services/geocoding.service');
 
 // Configuration
 const NDVI_SERVICE_URL = process.env.NDVI_SERVICE_URL || 'http://localhost:8000';
@@ -124,6 +125,29 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Geocode address endpoint
+router.post('/geocode-address', authenticateToken, async (req, res) => {
+  try {
+    const { address, areaAcres } = req.body;
+
+    if (!address || !areaAcres) {
+      return res.status(400).json({ error: 'Address and area in acres are required' });
+    }
+
+    const result = await geocodeAddressToPolygon(address, parseFloat(areaAcres));
+
+    res.json({
+      latitude: result.latitude,
+      longitude: result.longitude,
+      polygon: result.polygon,
+      formattedAddress: result.formattedAddress,
+    });
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // Orchard registration endpoint (same storage table as farms)
 router.post('/register-orchard', authenticateToken, upload.array('documents', 10), async (req, res) => {
   try {
@@ -142,6 +166,9 @@ router.post('/register-orchard', authenticateToken, upload.array('documents', 10
       numberOfTrees,
       treeTypes,
       gpsPolygon,
+      accountNumber,
+      accountName,
+      bankName,
     } = req.body;
     const userId = req.user.userId;
     const files = req.files || [];
@@ -167,11 +194,18 @@ router.post('/register-orchard', authenticateToken, upload.array('documents', 10
       !orchardType ||
       !addressLine1 ||
       !district ||
-      !state ||
       !pincode ||
-      !numberOfTrees ||
+      !accountNumber ||
+      !accountName ||
+      !bankName ||
       !parsedGpsPolygon
     ) {
+      return res.status(400).json({
+        error: 'Orchard name, orchard type, address, number of trees, banking detail',
+      });
+    }
+
+    if (!parsedGpsPolygon) {
       return res.status(400).json({
         error: 'Orchard name, orchard type, address, number of trees, and GPS polygon are required',
       });
@@ -216,11 +250,15 @@ router.post('/register-orchard', authenticateToken, upload.array('documents', 10
         pincode,
         landmark: landmark || null,
         fullAddress,
+        areaAcres: areaValue,
         gpsPolygon: parsedGpsPolygon,
         locationLatitude: centroid.latitude === null ? null : new Prisma.Decimal(centroid.latitude.toFixed(7)),
         locationLongitude: centroid.longitude === null ? null : new Prisma.Decimal(centroid.longitude.toFixed(7)),
         numberOfTrees: treeCount,
         treeTypes: parsedTreeTypes,
+        accountNumber: accountNumber || null,
+        accountName: accountName || null,
+        bankName: bankName || null,
         subscriptionPlan: 'FREE',
         registrationStatus: 'PENDING',
       },
