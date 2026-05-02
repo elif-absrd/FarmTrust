@@ -170,4 +170,24 @@ router.get('/me', authenticateToken, async (req, res) => {
   }
 });
 
+// Store Expo push token for remote notifications
+router.post('/push-token', authenticateToken, async (req, res) => {
+  try {
+    const { expoPushToken } = req.body;
+    if (!expoPushToken || typeof expoPushToken !== 'string') {
+      return res.status(400).json({ error: 'expoPushToken is required' });
+    }
+
+    await prisma.user.update({
+      where: { id: req.user.userId },
+      data: { expoPushToken },
+    });
+
+    return res.json({ message: 'Push token saved' });
+  } catch (error) {
+    console.error('Save push token error:', error);
+    res.status(500).json({ error: 'Failed to save push token' });
+  }
+});
+
 module.exports = router;

@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const prisma = require('./config/prisma');
 const { startNdviSyncScheduler } = require('./services/ndviSync');
+const { ensureAdminUser } = require('./services/adminSeed.service');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -83,6 +84,8 @@ const startServer = async () => {
   try {
     console.log('🔄 Connecting to PostgreSQL via Prisma...');
     await prisma.$connect();
+
+    await ensureAdminUser();
 
     app.listen(PORT, () => {
       console.log(`\n✅ FarmTrust Backend running on http://localhost:${PORT}`);

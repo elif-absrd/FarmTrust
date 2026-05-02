@@ -3,7 +3,7 @@ const FormData = require('form-data');
 const fs = require('fs');
 
 const PINATA_API_KEY = process.env.PINATA_API_KEY;
-const PINATA_API_SECRET = process.env.PINATA_API_SECRET;
+const PINATA_API_SECRET = process.env.PINATA_API_SECRET || process.env.PINATA_SECRET_KEY;
 const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
 
 const pinataAxios = axios.create({

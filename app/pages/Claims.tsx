@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Linking } from 'react-native';
 import { PageWrapper } from '../components/PageWrapper';
 import { StatusChip } from '../components/StatusChip';
 import { SeverityBadge } from '../components/SeverityBadge';
@@ -74,7 +74,7 @@ function statusLabel(status: string) {
     case 'PAID':
       return 'Payout Complete';
     case 'APPROVED':
-      return 'Smart Contract Triggered';
+      return 'Approved (Awaiting Payout)';
     case 'UNDER_REVIEW':
       return 'Oracle Verifying';
     case 'REJECTED':
@@ -134,6 +134,22 @@ export default function ClaimsPage() {
         status: claim.status === 'PAID' ? 'Confirmed' : 'Pending',
       }));
   }, [claims]);
+
+  const openPolygonscan = async (txHash: string) => {
+    try {
+      const resp = await apiRequest<{ polygonscanUrl: string }>(
+        `/api/blockchain/tx-status/${txHash}`,
+        { method: 'GET' },
+        token
+      );
+      if (resp?.polygonscanUrl) {
+        await Linking.openURL(resp.polygonscanUrl);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to open transaction';
+      Alert.alert('Transaction unavailable', message);
+    }
+  };
 
   const openClaim = async (claim: Claim) => {
     if (!token) return;
@@ -251,6 +267,15 @@ export default function ClaimsPage() {
             </View>
           ) : (
             <>
+              {!!selectedClaim?.txHash && (
+                <TouchableOpacity
+                  onPress={() => openPolygonscan(selectedClaim.txHash as string)}
+                  style={styles.txLink}
+                >
+                  <Text style={styles.txLinkText}>View payout on Polygonscan</Text>
+                </TouchableOpacity>
+              )}
+
               <View style={styles.auditTrail}>
                 {auditTrail.length ? (
                   auditTrail.map((a, i) => (
@@ -409,6 +434,21 @@ const styles = StyleSheet.create({
   },
   txPending: {
     color: '#f59e0b',
+  },
+  txLink: {
+    marginTop: 10,
+    marginBottom: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    backgroundColor: '#eff6ff',
+  },
+  txLinkText: {
+    color: '#1d4ed8',
+    fontWeight: '700',
+    fontSize: 12,
   },
   dialogHeaderRow: {
     flexDirection: 'row',

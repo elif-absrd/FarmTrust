@@ -121,8 +121,8 @@ interface ScanEvidence {
   sessionId: string;
 }
 
-const CLAIM_SEVERITY_THRESHOLD = 0.6;
-const MIN_CLAIM_GPS_POINTS = 5;
+const CLAIM_SEVERITY_THRESHOLD = 0.2;
+const MIN_CLAIM_GPS_POINTS = 1;
 
 function severityFromScore(score: number): 'Low' | 'Medium' | 'High' {
   if (score >= 0.7) return 'High';
@@ -716,16 +716,16 @@ export default function ScanDetect() {
                       <Text style={styles.treatmentTitle}>Treatment Recommendations</Text>
                     </View>
                     <View style={styles.treatmentList}>
-                      {recommendations.map((item) => (
-                        <Text key={item} style={styles.treatmentItem}>• {item}</Text>
+                      {recommendations.map((item, idx) => (
+                        <Text key={`${idx}-${item}`} style={styles.treatmentItem}>• {item}</Text>
                       ))}
                     </View>
                   </View>
                   {prediction.isPlantDetected !== false && !!prediction.topPredictions?.length && (
                     <View style={styles.topPredictions}>
                       <Text style={styles.topPredictionsTitle}>Top Predictions</Text>
-                      {prediction.topPredictions.map((item) => (
-                        <Text key={item.classId} style={styles.topPredictionItem}>
+                      {prediction.topPredictions.map((item, idx) => (
+                        <Text key={`${item.classId}-${item.label}-${idx}`} style={styles.topPredictionItem}>
                           {item.label} ({(item.confidence * 100).toFixed(1)}%)
                         </Text>
                       ))}

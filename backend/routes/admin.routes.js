@@ -1,7 +1,7 @@
 const express = require('express');
 const prisma = require('../config/prisma');
 const { authenticateToken } = require('../middleware/auth');
-const { approveClaimAndTriggerPayout } = require('../services/claim-approval.service');
+const { approveClaimForPayout, confirmPayoutForApprovedClaim } = require('../services/claim-approval.service');
 
 const router = express.Router();
 
@@ -24,11 +24,14 @@ router.get('/claims-pending-review', authenticateToken, requireAdmin, async (req
     const { page = 1, limit = 20, status } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const where = {
-      status: {
-        in: status ? [status] : ['PENDING', 'UNDER_REVIEW'],
-      },
-    };
+    const adminId = req.user.userId;
+
+    // Only show claims that still need admin action.
+    // APPROVED and PAID claims belong in the Transactions tab, not the review queue.
+    const where = status
+      ? { status: { in: [status] } }
+      : { status: { in: ['PENDING', 'UNDER_REVIEW', 'SURVEYED_PENDING'] } };
+
 
     const [claims, total] = await Promise.all([
       prisma.claim.findMany({
@@ -216,20 +219,126 @@ router.get('/claims/:claimId/details', authenticateToken, requireAdmin, async (r
 router.post('/claims/:claimId/approve', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { claimId } = req.params;
-    const { remarks, amount } = req.body;
+    const { remarks } = req.body;
     const adminId = req.user.userId;
 
-    const result = await approveClaimAndTriggerPayout({
+    const result = await approveClaimForPayout({
       claimId: parseInt(claimId),
       adminId,
       remarks,
-      amount,
     });
 
     res.json(result);
   } catch (error) {
     console.error('Error approving claim:', error);
     res.status(error.statusCode || 500).json({ error: error.message || 'Failed to approve claim' });
+  }
+});
+
+/**
+ * GET /api/admin/transactions
+ * Approved claims awaiting payout confirmation + paid claims
+ */
+router.get('/transactions', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const adminId = req.user.userId;
+
+    // Include all APPROVED and PAID claims for any admin (not just the current one)
+    // so the transactions tab shows the full history
+    const transactions = await prisma.claim.findMany({
+      where: {
+        status: { in: ['APPROVED', 'PAID'] },
+      },
+      include: {
+        farm: {
+          include: {
+            owner: {
+              select: {
+                id: true,
+                email: true,
+                farmerName: true,
+                phone: true,
+                walletAddress: true,
+              },
+            },
+            orchardRegistration: {
+              select: {
+                accountNumber: true,
+                accountName: true,
+                bankName: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { approvedAt: 'desc' },
+      take: 100,
+    });
+
+    res.json({
+      transactions: transactions.map((claim) => ({
+        claimId: claim.id,
+        status: claim.status,
+        approvedAt: claim.approvedAt,
+        txHash: claim.txHash,
+        farmer: {
+          id: claim.farm.owner.id,
+          name: claim.farm.owner.farmerName,
+          email: claim.farm.owner.email,
+          phone: claim.farm.owner.phone,
+          walletAddress: claim.farmerWalletAddress || claim.farm.owner.walletAddress || null,
+        },
+        orchard: {
+          id: claim.farm.id,
+          name: claim.farm.farmName,
+          type: claim.farm.orchardType,
+          accountNumber: claim.farm.orchardRegistration?.accountNumber || null,
+          accountName: claim.farm.orchardRegistration?.accountName || null,
+          bankName: claim.farm.orchardRegistration?.bankName || null,
+        },
+        disease: {
+          type: claim.diseaseType,
+          severity: claim.diseaseSeverity,
+        },
+      })),
+    });
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    res.status(500).json({ error: 'Failed to fetch transactions' });
+  }
+});
+
+/**
+ * POST /api/admin/claims/:claimId/confirm-payout
+ * Confirm POL amount and trigger blockchain payout via MockINR + MockInsurance contracts.
+ * Writes txHash back to Claims table as immutable Polygon ledger record.
+ * Body: { amount: number (POL), remarks?: string }
+ */
+router.post('/claims/:claimId/confirm-payout', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { claimId } = req.params;
+    const { amount, remarks } = req.body;
+    const adminId = req.user.userId;
+
+    // Validate amount early to give a clear error
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({
+        error: 'amount must be a positive number (POL). e.g. { "amount": 0.25 }',
+      });
+    }
+
+    const result = await confirmPayoutForApprovedClaim({
+      claimId: parseInt(claimId),
+      adminId,
+      amount: parsedAmount,
+      remarks: remarks || 'Payout confirmed by admin',
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error confirming payout:', error);
+    res.status(error.statusCode || 500).json({ error: error.message || 'Failed to confirm payout' });
   }
 });
 
@@ -346,6 +455,81 @@ router.post('/claims/:claimId/survey', authenticateToken, requireAdmin, async (r
   } catch (error) {
     console.error('Error marking claim for survey:', error);
     res.status(500).json({ error: 'Failed to mark claim for survey' });
+  }
+});
+
+/**
+ * POST /api/admin/claims/:claimId/survey-decision
+ * Admin decides on a surveyed claim (approve survey -> APPROVED, reject survey -> REJECTED).
+ */
+router.post('/claims/:claimId/survey-decision', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { claimId } = req.params;
+    const { decision, rejectionReason, remarks } = req.body;
+    const adminId = req.user.userId;
+
+    if (!decision || !['APPROVE', 'REJECT'].includes(String(decision).toUpperCase())) {
+      return res.status(400).json({ error: 'decision must be APPROVE or REJECT' });
+    }
+
+    const claim = await prisma.claim.findUnique({
+      where: { id: parseInt(claimId) },
+      include: { auditLogs: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    });
+
+    if (!claim) {
+      return res.status(404).json({ error: 'Claim not found' });
+    }
+
+    if (claim.status !== 'SURVEYED_PENDING') {
+      return res.status(400).json({ error: 'Claim is not awaiting survey decision' });
+    }
+
+    const normalizedDecision = String(decision).toUpperCase();
+
+    if (normalizedDecision === 'REJECT' && !rejectionReason) {
+      return res.status(400).json({ error: 'rejectionReason is required when rejecting survey' });
+    }
+
+    const updatedClaim = await prisma.claim.update({
+      where: { id: parseInt(claimId) },
+      data:
+        normalizedDecision === 'APPROVE'
+          ? {
+              status: 'APPROVED',
+              approvedAt: new Date(),
+              approvedBy: adminId,
+              rejectionReason: null,
+            }
+          : {
+              status: 'REJECTED',
+              approvedAt: new Date(),
+              approvedBy: adminId,
+              rejectionReason,
+            },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        claimId: parseInt(claimId),
+        action: normalizedDecision === 'APPROVE' ? 'SURVEY_APPROVED' : 'SURVEY_REJECTED',
+        trustScore: claim.trustScore,
+        componentScores: claim.componentScores,
+        imageIpfsHash: claim.auditLogs[0]?.imageIpfsHash,
+        ndviReportIpfsHash: claim.auditLogs[0]?.ndviReportIpfsHash,
+        thresholdReportIpfsHash: claim.auditLogs[0]?.thresholdReportIpfsHash,
+        approvedBy: adminId,
+        remarks: remarks || (normalizedDecision === 'APPROVE' ? 'Survey approved by admin' : rejectionReason),
+      },
+    });
+
+    return res.json({
+      message: normalizedDecision === 'APPROVE' ? 'Survey approved' : 'Survey rejected',
+      claim: updatedClaim,
+    });
+  } catch (error) {
+    console.error('Error deciding survey claim:', error);
+    res.status(500).json({ error: 'Failed to decide surveyed claim' });
   }
 });
 

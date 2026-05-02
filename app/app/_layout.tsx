@@ -8,13 +8,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { apiRequest } from '@/utils/api';
 
 import { registerForPushNotifications } from '../services/notification.service';
-
-// Inside your root component:
-useEffect(() => {
-  registerForPushNotifications();
-}, []);
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -70,7 +66,7 @@ function AuthGate() {
     const firstSegment = segments[0] as string | undefined;
     const secondSegment = segments[1] as string | undefined;
     const inAuthGroup = firstSegment === 'login' || firstSegment === 'signup';
-    const onboardingComplete = user?.onboarding_completed === true;
+    const onboardingComplete = user?.role === 'ADMIN' || user?.onboarding_completed === true;
     if (!user && !inAuthGroup) {
       router.replace('/login');
     } else if (user && !onboardingComplete && (! (firstSegment === '(tabs)' && secondSegment === 'orchard'))) {
@@ -83,6 +79,41 @@ function AuthGate() {
   return null;
 }
 
+function PushTokenSync() {
+  const { token, user } = useAuth();
+
+  useEffect(() => {
+    if (!token || !user) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const expoPushToken = await registerForPushNotifications();
+      if (cancelled || !expoPushToken) return;
+
+      try {
+        await apiRequest(
+          '/api/auth/push-token',
+          {
+            method: 'POST',
+            body: JSON.stringify({ expoPushToken }),
+          },
+          token,
+        );
+      } catch (error) {
+        // Non-fatal: user can still use the app.
+        console.warn('Failed to sync push token', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, user?.id]);
+
+  return null;
+}
+
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
@@ -90,6 +121,7 @@ function RootLayoutNav() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <AuthGate />
+        <PushTokenSync />
         <Stack>
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="signup" options={{ headerShown: false }} />

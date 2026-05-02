@@ -16,6 +16,16 @@ Node.js + Express.js backend for FarmTrust application with PostgreSQL database 
 npm install
 ```
 
+### 1.2 ML Model Dependencies
+
+The ML inference script uses TensorFlow (Windows) or the TFLite runtime (Linux/macOS).
+
+```bash
+python -m pip install -r backend/ml/requirements.txt
+```
+
+If you use a virtual environment, set `PYTHON_BIN` in `.env` to the interpreter path (e.g. `E:\sem6\FarmTrust\venv\Scripts\python.exe`).
+
 ### 1.1 Prisma Setup
 
 ```bash

@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
-const { approveClaimAndTriggerPayout } = require('../services/claim-approval.service');
+const { approveClaimForPayout } = require('../services/claim-approval.service');
 
 const router = express.Router();
 
@@ -15,18 +15,17 @@ function requireAdmin(req, res, next) {
 router.post('/approve/:claimId', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { claimId } = req.params;
-    const { adminId, remarks, amount } = req.body;
+    const { adminId, remarks } = req.body;
     const tokenAdminId = req.user.userId;
 
     if (adminId && Number(adminId) !== tokenAdminId) {
       return res.status(403).json({ error: 'Admin ID mismatch' });
     }
 
-    const result = await approveClaimAndTriggerPayout({
+    const result = await approveClaimForPayout({
       claimId: parseInt(claimId),
       adminId: tokenAdminId,
       remarks,
-      amount,
     });
 
     res.json(result);

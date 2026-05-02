@@ -202,10 +202,14 @@ class RiskAssessmentService {
       where: { id: farmId, ownerId: userId },
       select: {
         id: true,
+        farmTokenId: true,
         gpsPolygon: true,
         baselineNdvi: true,
         locationLatitude: true,
         locationLongitude: true,
+        owner: {
+          select: { walletAddress: true },
+        },
       },
     });
 
@@ -234,8 +238,13 @@ class RiskAssessmentService {
 
     const claim = await prisma.claim.create({
       data: {
-        farmId,
-        policyId: payload.policyId ? Number(payload.policyId) : null,
+        farm: { connect: { id: farmId } },
+        // farmTokenId: Farm stores it as String?, Claim needs Int — parse safely with fallback 0
+        farmTokenId: parseInt(farm.farmTokenId, 10) || 0,
+        // farmerWalletAddress is required NOT NULL — use owner's wallet or empty string for testing
+        farmerWalletAddress: farm.owner?.walletAddress || '',
+        // Prisma 6.x requires relation connect syntax — cannot use bare policyId scalar
+        ...(payload.policyId ? { policy: { connect: { id: Number(payload.policyId) } } } : {}),
         diseaseImageHash: ipfsHashes[0] || null,
         diseaseType,
         diseaseSeverity: new Prisma.Decimal(diseaseSeverity.toFixed(2)),
@@ -248,16 +257,20 @@ class RiskAssessmentService {
         ndviDropPercentage:
           trust.ndvi.dropPercentage === null ? null : new Prisma.Decimal(trust.ndvi.dropPercentage.toFixed(2)),
         trustScore: decimalScore(trust.scores.trustScore),
-        nScore: decimalScore(trust.scores.n),
-        gScore: decimalScore(trust.scores.g),
-        tScore: decimalScore(trust.scores.t),
-        wScore: decimalScore(trust.scores.w),
-        pScore: decimalScore(trust.scores.p),
+        // Store component scores as JSON — individual nScore/gScore columns don't exist in the schema
+        componentScores: {
+          n: trust.scores.n,
+          g: trust.scores.g,
+          t: trust.scores.t,
+          w: trust.scores.w,
+          p: trust.scores.p,
+        },
         routingTier: trust.routingTier,
         status: trust.status,
         trustReportJson: trust.report,
       },
     });
+
 
     const reportWithClaim = {
       ...trust.report,
@@ -321,7 +334,7 @@ class RiskAssessmentService {
       ipfsHashes,
       gpsPointCount: gpsArray.length,
       routingTier: routing.routingTier,
-      status: routing.status,
+      status: routing.label || routing.status,  // Human-readable label for UI display
       scores,
       ndvi,
       gps,
@@ -523,12 +536,12 @@ class RiskAssessmentService {
 
   _routeTrustScore(trustScore) {
     if (trustScore >= 0.65) {
-      return { routingTier: 'FAST TRACK', status: 'Pending for Admin Review' };
+      return { routingTier: 'FAST TRACK', status: 'PENDING', label: 'Pending for Admin Review' };
     }
     if (trustScore >= 0.40) {
-      return { routingTier: 'STANDARD', status: 'Pending for Admin Review' };
+      return { routingTier: 'STANDARD', status: 'UNDER_REVIEW', label: 'Pending for Admin Review' };
     }
-    return { routingTier: 'FLAGGED', status: 'Marked for Field Inspection' };
+    return { routingTier: 'FLAGGED', status: 'SURVEYED_PENDING', label: 'Marked for Field Inspection' };
   }
 
   async getFarmStatus(farmId) {

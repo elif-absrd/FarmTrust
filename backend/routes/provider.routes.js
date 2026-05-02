@@ -12,7 +12,8 @@ function requireProvider(req, res, next) {
 }
 
 function statusLabel(status) {
-  if (status === 'PAID' || status === 'APPROVED') return 'Smart Contract Triggered';
+  if (status === 'PAID') return 'Payout Complete';
+  if (status === 'APPROVED') return 'Approved (Awaiting Payout)';
   if (status === 'UNDER_REVIEW') return 'Oracle Verifying';
   return 'Pending';
 }

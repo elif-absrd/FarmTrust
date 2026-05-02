@@ -51,6 +51,7 @@ model User {
   walletAddress String?   @unique @map("wallet_address") @db.VarChar(255)
   email         String    @unique @db.VarChar(255)
   passwordHash  String?   @map("password_hash") @db.VarChar(255)
+  expoPushToken String?   @map("expo_push_token") @db.VarChar(255)
   phone         String?   @db.VarChar(20)
   farmerName    String?   @map("farmer_name") @db.VarChar(255)
   region        String?   @db.VarChar(255)

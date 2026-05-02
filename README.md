@@ -211,88 +211,153 @@ The system architecture consists of four main development workflows:
 8. **Payout**: Mock ERC-20 tokens transferred to farmer's wallet, simulating INR conversion
 9. **Record Keeping**: Complete audit trail maintained on blockchain for transparency
 
-## Installation
+## Installation and Setup
 
 ### Prerequisites
 
-- Node.js
-- npm or yarn
-- PostgreSQL
-- Python 3.8+ (for ML model training)
-- React Native CLI
-- MetaMask wallet extension (for blockchain interaction)
-- IPFS Desktop or CLI
-- Ganache (for local blockchain testing)
+- **Node.js** (v18+)
+- **npm** or **yarn** or **pnpm**
+- **PostgreSQL** (Local or Docker)
+- **Python 3.8+** (for NDVI Service & ML model training)
+- **Expo CLI** (for mobile app)
+- **MetaMask** wallet extension (for blockchain interaction)
 
-### Backend Setup
+---
+
+### 1. PostgreSQL Database Setup
+
+**Windows:**
+1. Download & Install [PostgreSQL](https://www.postgresql.org/download/windows/).
+2. Open Command Prompt:
+   ```bash
+   psql -U postgres
+   CREATE DATABASE farmtrust;
+   \q
+   ```
+
+**Alternative using Docker:**
+```bash
+docker run --name farmtrust-db -e POSTGRES_PASSWORD=postgres -d -p 5432:5432 postgres
+```
+
+---
+
+### 2. Backend Setup (Node.js)
+
+The backend handles user authentication, farm management, and claim submission.
 
 ```bash
-# Clone the repository
-git clone https://github.com/elif-absrd/FarmTrust
-cd FarmTrust
+cd backend
+
+# 1. Setup environment variables
+cp .env.example .env
+# Edit .env and update DB_PASSWORD or DATABASE_URL with your PostgreSQL credentials
+
+# 2. Install dependencies
+npm install
+
+# 3. Apply database migrations & generate Prisma client
+npx prisma generate
+npx prisma db push
+
+# 4. Start the backend server (runs on port 5000)
+npm run dev
 ```
+
+---
+
+### 3. NDVI Service Setup (Python)
+
+The NDVI service handles Google Earth Engine integration for satellite-based crop health verification.
+
+```bash
+cd ndvi-service
+
+# 1. Setup environment variables
+cp .env.example .env
+# Ensure DB credentials match the backend
+
+# 2. Create and activate a virtual environment
+python -m venv venv
+# On Windows:
+venv\Scripts\activate
+# On Mac/Linux:
+# source venv/bin/activate
+
+# 3. Install Python dependencies
+pip install -r requirements.txt
+
+# 4. Start the FastAPI service (runs on port 8000)
+# First run will open a browser to authenticate with Google Earth Engine
+python main.py
+```
+*(Optional)* In a separate terminal, run `python cron_baseline.py` to start the background job that collects baseline NDVI metrics every 5 days.
+
+---
+
+### 4. Smart Contracts Setup (Web3)
+
+Deploys the mock insurance smart contracts to a local hardhat network or testnet.
+
+```bash
+cd web3/web3
+
+# 1. Install dependencies
+npm install  # or pnpm install
+
+# 2. Run a local Hardhat node (Keep this terminal open)
+npx hardhat node
+
+# 3. In a new terminal (still inside web3/web3), deploy the contracts:
+npx hardhat ignition deploy ignition/modules/Counter.ts --network localhost
+```
+
+---
+
+### 5. Mobile App Setup (Expo React Native)
+
+The mobile app provides the interface for farmers to scan leaves and manage policies.
+
+```bash
+cd app
+
+# 1. Install dependencies
+npm install
+
+# 2. Start the Expo development server (runs on port 8081)
+npx expo start
+```
+*Note: To connect the app to your local backend on a physical device, ensure you update the backend API URL in the app's configuration to your machine's local IP address (e.g., `http://192.168.1.X:5000`) instead of `localhost`.*
+
+---
 
 ## Usage
 
-### For Farmers
+### Running the Entire Project Locally
 
-1. **Register and Onboard**
-   - Download the FarmTrust mobile app
-   - Create an account with farmer credentials
-   - Set up blockchain wallet (guided process)
-   - Select crops and purchase insurance policy
+To run the complete system, you will need multiple terminal windows open:
 
-2. **Disease Detection**
-   - Open the app and select "Scan Plant"
-   - Capture clear image of affected leaf
-   - Receive instant diagnosis and disease identification
-   - View severity level and treatment recommendations
+1. **Terminal 1 (Backend):** `cd backend && npm run dev`
+2. **Terminal 2 (NDVI API):** `cd ndvi-service && venv\Scripts\activate && python main.py`
+3. **Terminal 3 (NDVI Cron):** `cd ndvi-service && venv\Scripts\activate && python cron_baseline.py`
+4. **Terminal 4 (Web3 Node):** `cd web3/web3 && npx hardhat node`
+5. **Terminal 5 (Mobile App):** `cd app && npx expo start`
 
-3. **Insurance Claims**
-   - If disease severity is high, claim is automatically triggered
-   - Track claim status in the app dashboard
-   - Receive notification when payout is processed
-   - View mock token transfer in wallet
+### Testing the Workflows
 
-4. **Dashboard and Analytics**
-   - Monitor active insurance policies
-   - View disease history and trends
-   - Access treatment recommendations and best practices
-   - Track claim history and payouts
+1. **Register and Onboard:**
+   - Open the Expo app (on simulator or scan QR code via Expo Go).
+   - Create an account with farmer credentials.
+   - Set up your farm by defining the GPS polygon.
 
-### For Insurance Providers
+2. **Disease Detection:**
+   - Use the "Scan Plant" feature in the app.
+   - Capture a clear image of an affected leaf. The on-device ML model will identify the disease and severity.
 
-1. **Policy Management**
-   - Create and configure insurance policies
-   - Set disease severity thresholds for automatic triggers
-   - Define coverage amounts and terms
-   - Monitor policy performance
-
-2. **Claim Processing**
-   - View automated claims triggered by AI detection
-   - Review oracle-verified disease data on blockchain
-   - Monitor smart contract executions
-   - Access complete audit trail for all transactions
-
-3. **Analytics and Reporting**
-   - View disease outbreak patterns across regions
-   - Analyze claim statistics and payout trends
-   - Generate reports for regulatory compliance
-   - Track farmer engagement and app usage
-
-### For Developers/Testers
-
-1. **Local Testing**
-   - Use Ganache for local blockchain simulation
-   - Test smart contracts with mock accounts
-   - Simulate disease detection and payout flow
-   - Debug using console logs and transaction traces
-
-2. **Testnet Deployment**
-   - Deploy contracts to Polygon Mumbai testnet
-   - Request test MATIC tokens from faucet
-   - Test with real blockchain but without real funds
-   - Validate oracle integration with Chainlink testnet
+3. **Automated Insurance Claims:**
+   - If the severity is high (>0.6), a claim is automatically submitted to the backend.
+   - The backend triggers the NDVI service to verify crop health via satellite.
+   - If verified, the smart contract is executed, and mock ERC-20 tokens are transferred to the farmer's wallet.
 
 ## Contributing
 

@@ -8,3 +8,5 @@ npm-modules/
 _vscode/*
 .jpg/*
 .png/*
+venv*
+node_modules/

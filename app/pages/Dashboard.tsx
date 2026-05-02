@@ -36,9 +36,20 @@ export default function Dashboard() {
       {/* Top bar with logout */}
       <View style={styles.topBar}>
         <Text style={styles.topBarTitle}>Dashboard</Text>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn} activeOpacity={0.7}>
-          <LogOut color="#6b7280" size={20} />
-        </TouchableOpacity>
+        <View style={styles.topBarActions}>
+          {user?.role === 'ADMIN' ? (
+            <TouchableOpacity
+              onPress={() => router.push('/admin' as any)}
+              style={styles.adminBtn}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.adminBtnText}>Admin</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn} activeOpacity={0.7}>
+            <LogOut color="#6b7280" size={20} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Hero banner */}
@@ -126,6 +137,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 16,
+  },
+  topBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  adminBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+  },
+  adminBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   topBarTitle: {
     fontSize: 20,

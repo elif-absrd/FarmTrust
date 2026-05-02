@@ -34,11 +34,11 @@ export const TEST_USERS: Omit<User, never>[] = [
   },
   {
     id: '2',
-    username: 'provider1',
+    username: 'provider',
     password: 'provider123',
-    name: 'AgriVet Clinic',
+    name: 'Provider User',
     role: 'provider',
-    email: 'agrivet@farmtrust.com',
+    email: 'provider@farmtrust.com',
   },
   {
     id: '3',
